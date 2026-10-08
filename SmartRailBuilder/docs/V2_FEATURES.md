@@ -1,6 +1,40 @@
 # Smart Rail Builder v2.0.0 — What's New
 
-A running list, updated after every project step. Full technical detail is in `CHANGELOG.md`.
+Full technical detail is in `CHANGELOG.md`. The step-by-step lists below say exactly what each
+project step added.
+
+## Everything in v2 at a glance
+
+**New features (12)**
+1. Crouch + use a rail opens the builder; standing places rails one at a time like vanilla
+2. Repeat last build (one tap, same settings, current direction)
+3. Remembered settings (sliders start at your last build; saved across sessions)
+4. Undo last build (restores the world, refunds items, never touches blocks you changed since)
+5. Powered boosters (powered rail + redstone block every N rails, all modes)
+6. Tunnel lights (light blocks in the walls of Underground tunnels, on by default)
+7. Fill cave gaps (Underground tunnels can cross open caves, on by default)
+8. Bridge guard rails (fences along the raised part of a bridge)
+9. Settings screen (your own defaults, Quick repeat, Show tips)
+10. Fewer rails needed when boosters are on
+11. The confirm screen shows boosters, lights, cave filling and guard rails
+12. New logo and pack icons
+
+**Optimizations (10)**
+1. Rail shapes worked out once per build, not once per rail
+2. The "air" block for tunnels looked up once, not once per block dug
+3. Undo spread over game ticks (32 blocks per tick)
+4. Inventory checks ~28× cheaper (163 slot reads instead of 4,608 for 64 rails)
+5. Bridge-material checks remembered instead of re-tested (and re-thrown) every time
+6. Booster, light and fence block types looked up once per session
+7. Logging at INFO instead of DEBUG (no Content Log spam)
+8. The final safety check reuses the route scan from the same tick instead of scanning twice
+9. Game mode read once per build (4 reads for 40 rails, was 40+)
+10. Extras never stop a build: a missing item or odd block just skips that one extra
+
+**Fixes (3)**
+1. The behavior pack showed as "pack.name" in the pack list — it now has its own name text
+2. With boosters on, a player carrying exactly enough rails could be stopped at a booster spot
+3. The "Show tips" setting is read outside Minecraft's restricted before-event mode
 
 ## Step 1 — Crouch-to-open
 **Features**
@@ -83,3 +117,30 @@ A running list, updated after every project step. Full technical detail is in `C
   re-scans fully as before. This skips reading every block along the route a second time.
 - **Game mode read once per build** instead of once per block: 4 reads for a 40-rail build, down
   from 40+. Safe because changing game mode cancels a running build.
+
+## Step 5 — Review, fixes & release
+**Fixes found in the final review**
+- The behavior pack had no language file of its own, so the behavior pack list showed the raw key
+  "pack.name". It now shows "Smart Rail Builder" with a description (this was also true in v1.0.0).
+- Boosters, lights and guard rails can no longer stop a build if a block read fails unexpectedly;
+  that one extra is skipped instead.
+- The "Show tips" setting is no longer read inside Minecraft's restricted before-event callback.
+
+**Release**
+- Version **2.0.0** everywhere (both manifests, the script, and the behavior pack's dependency on the
+  resource pack). The pack IDs are the same as v1, so installing v2 **upgrades** v1 in existing
+  worlds instead of adding a second copy.
+- `tools/package.py` builds the `.mcaddon` and both `.mcpack` files the same way every time
+  (byte-identical rebuilds), with the same layout as the v1 files.
+- `tests/release.test.mjs` checks versions, pack IDs, pack names/icons, and that every script parses.
+
+## In-game test checklist
+1. Stand + use a rail → one rail placed, tip shown once. Crouch + use a rail → menu, no rail placed.
+2. Build Normal / Bridge / Underground once each in Survival and Creative.
+3. Repeat last build facing a new direction; turn on Quick repeat in Settings and repeat again.
+4. Undo after each mode; break one rail first once and check the "left as they are" message.
+5. Boosters every 8 on a flat line: powered rails light up and carts keep speed.
+6. Underground with lights (glowstone in inventory) and through a cave with Fill cave gaps on.
+7. Bridge with Guard rails on (fences in inventory): fences only on the raised part, and they connect.
+8. Settings: change every option, leave and rejoin the world, check they were kept.
+9. Behavior pack list shows "Smart Rail Builder" with the new icon.

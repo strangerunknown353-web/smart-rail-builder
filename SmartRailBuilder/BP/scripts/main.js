@@ -247,9 +247,15 @@ function handleRailItemInteraction(event) {
     // Leave event.cancel alone: the game places a single rail. The first
     // time per session, tell the player how to reach the build menu now
     // that a plain tap no longer opens it. Deferred because actionbar
-    // writes aren't allowed in restricted-execution mode.
-    if (preferences.get(player).showTips && interactionGate.takeHint(player.id)) {
-      system.run(() => messageService.sendActionBar(player, LocalizationKeys.ACTIONBAR_CROUCH_HINT));
+    // writes aren't allowed in restricted-execution mode — and so is the
+    // "Show tips" preference read (a dynamic property), keeping this
+    // before-event handler free of anything but the cancel decision.
+    if (interactionGate.takeHint(player.id)) {
+      system.run(() => {
+        if (player.isValid && preferences.get(player).showTips) {
+          messageService.sendActionBar(player, LocalizationKeys.ACTIONBAR_CROUCH_HINT);
+        }
+      });
     }
     return;
   }

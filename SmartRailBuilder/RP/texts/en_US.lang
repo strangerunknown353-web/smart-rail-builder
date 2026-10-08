@@ -5,7 +5,7 @@
 ## forward-declared in LocalizationKeys.js until their own Roadmap phase.
 
 pack.name=Smart Rail Builder
-pack.description=Smart, survival-friendly railway construction.
+pack.description=Smart, survival-friendly railway construction. Crouch + use a rail to open the builder.
 
 ## --- Roadmap Phase 3 ---
 ryzenRailBuilder.menu.title=Smart Rail Builder

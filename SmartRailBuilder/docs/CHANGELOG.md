@@ -1458,3 +1458,20 @@ consecutive session on a base that has still never been confirmed in-game — se
   `BuildSession.isSurvival` cached per build (strategies + ExtrasBuilder).
 - Tests: `tests/step4.test.mjs` (55 assertions). Mocks: `ModalFormData.toggle`. Step 2 expectations
   updated for the new saved fields.
+
+## [2.0.0] — 2026-10-08 — Release
+
+### v2 Step 5 — Review, fixes, release packaging
+- Fix: BP had no `texts/` folder, so its `pack.name`/`pack.description` manifest keys were unresolved
+  (present since v1.0.0). Added `BP/texts/en_US.lang` + `languages.json`.
+- Fix: `ExtrasBuilder` reads go through `safeRead()` — an unexpected block-read error skips that extra
+  instead of failing the build, matching the module's "never fails a build" contract.
+- Fix: `main.js` no longer reads the `showTips` preference (a dynamic property) inside the
+  `playerInteractWithBlock` before-event; the read happens in the deferred `system.run` callback.
+- Version 2.0.0: `ADDON.VERSION`, BP/RP header + module versions, BP's RP dependency. UUIDs unchanged
+  (in-place upgrade from v1.0.0). RP pack description mentions crouch-to-open.
+- `tools/package.py`: deterministic packaging into `releases/v2.0.0/` (two `.mcpack` + `.mcaddon`
+  containing `BP.mcpack`/`RP.mcpack`, same layout as v1.0.0).
+- `tests/release.test.mjs` (107 assertions): manifest/version/UUID consistency, pack texts/icons,
+  `node --check` on every script.
+- `docs/V2_FEATURES.md`: complete v2 list + in-game test checklist.

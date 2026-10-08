@@ -72,6 +72,19 @@ export function createExtrasState(plan, player, inventoryManager) {
   };
 }
 
+/**
+ * readBlock() re-throws errors it doesn't recognise; an extra must never
+ * fail the build over one (see NEVER FAILS A BUILD above), so any read
+ * error just means "skip this extra".
+ */
+function safeRead(dimension, position) {
+  try {
+    return readBlock(dimension, position);
+  } catch {
+    return { status: "ERROR" };
+  }
+}
+
 /** Can a power/light block go where `block` is? See this file's header. */
 function isSafeToReplace(block) {
   if (block.isAir || block.isLiquid) return false;
@@ -127,7 +140,7 @@ export class ExtrasBuilder {
 
     if (isSurvival && !this._inventoryManager.hasAtLeast(player, boosterRailId, 1)) return railTypeId;
 
-    const read = readBlock(dimension, booster.powerPosition);
+    const read = safeRead(dimension, booster.powerPosition);
     if (read.status !== "OK") return railTypeId;
     if (read.block.typeId !== powerId) {
       if (!isSafeToReplace(read.block)) return railTypeId;
@@ -188,11 +201,11 @@ export class ExtrasBuilder {
     const isSurvival = session.isSurvival;
     const fenceId = extras.fenceId;
     for (const position of spot.positions) {
-      const read = readBlock(dimension, position);
+      const read = safeRead(dimension, position);
       if (read.status !== "OK") continue;
       const target = read.block;
       if (!(target.isAir || REPLACEABLE_BLOCK_ID_SET.has(target.typeId)) || target.isLiquid) continue;
-      const under = readBlock(dimension, { x: position.x, y: position.y - 1, z: position.z });
+      const under = safeRead(dimension, { x: position.x, y: position.y - 1, z: position.z });
       if (under.status !== "OK" || !(under.block.isAir || under.block.isLiquid)) continue;
 
       if (isSurvival && !this._inventoryManager.hasAtLeast(player, fenceId, 1)) {
@@ -227,7 +240,7 @@ export class ExtrasBuilder {
     const lightId = extras.lightBlockId;
     if (isSurvival && !this._inventoryManager.hasAtLeast(player, lightId, 1)) return;
 
-    const read = readBlock(dimension, light.position);
+    const read = safeRead(dimension, light.position);
     if (read.status !== "OK" || !isSafeToReplace(read.block)) return;
     try {
       session.journal.write(read.block, light.position, permutationFor(lightId), isSurvival ? lightId : undefined);

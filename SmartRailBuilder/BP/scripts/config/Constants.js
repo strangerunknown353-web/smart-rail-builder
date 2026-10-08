@@ -79,7 +79,12 @@ export const ADDON = Object.freeze({
   // bumped together, as this file's own standing rule has required since
   // Project Prompt 15. See CHANGELOG.md's Project Prompt 30 entry and
   // README.md.
-  VERSION: "1.0.0",
+  //
+  // v2.0.0 (Project Steps 1-5): crouch-to-open, repeat/undo, boosters,
+  // tunnel lights, cave filling, guard rails, settings and optimizations.
+  // Same four numeric fields bumped together, as always; pack UUIDs are
+  // unchanged so v2 upgrades v1 in existing worlds.
+  VERSION: "2.0.0",
 });
 
 /**

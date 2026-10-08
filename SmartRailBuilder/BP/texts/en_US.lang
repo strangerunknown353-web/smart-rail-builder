@@ -1,0 +1,6 @@
+## Smart Rail Builder (behavior pack) — en_US
+## v2.0.0: the behavior pack's own listing strings. Its manifest uses the
+## "pack.name"/"pack.description" keys, which are resolved from THIS pack's
+## texts folder — without it the behavior pack list showed "pack.name".
+pack.name=Smart Rail Builder
+pack.description=Smart, survival-friendly railway construction. Crouch + use a rail to open the builder.

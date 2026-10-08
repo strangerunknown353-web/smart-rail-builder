@@ -5,10 +5,10 @@
     "description": "pack.description",
     "uuid": "27195d03-43f3-479d-8548-9ff1c6464b88",
     "version": [
-        1,
-        0,
-        0
-      ],
+      2,
+      0,
+      0
+    ],
     "min_engine_version": [
       1,
       26,
@@ -22,7 +22,7 @@
       "language": "javascript",
       "uuid": "a3163b2c-46b4-4f88-8a3d-d6c4e2a5326b",
       "version": [
-        1,
+        2,
         0,
         0
       ],
@@ -41,7 +41,7 @@
     {
       "uuid": "fa25588d-d4e5-4b3f-acec-d3103b1799a9",
       "version": [
-        1,
+        2,
         0,
         0
       ]
