@@ -1386,3 +1386,6 @@ consecutive session on a base that has still never been confirmed in-game — se
 - Tests: new `tests/interactionGate.test.mjs` (decision table, real `main.js` wiring, and a check that
   every `LocalizationKeys` value exists in `en_US.lang`). The test-only `@minecraft/server` mock gained
   `system.run` (queued, flushed by tests) and `world.beforeEvents.playerInteractWithBlock`.
+- New v2 logo: pixel-style "SMART RAIL BUILDER" title over a sunset railway with a gold gear badge.
+  Full size at `docs/logo.png` (1024×1024); 256×256 copies replace both `pack_icon.png`s. Drawn by
+  `tools/make_logo.py` (Pillow) so it can be regenerated or tweaked.
