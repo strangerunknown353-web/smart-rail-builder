@@ -44,8 +44,42 @@ export const ADDON = Object.freeze({
   // CHANGELOG.md's Project Prompt 15 entry and TODO.md for the full write-up of
   // this finding. Bumped to 0.1.13 this session (Project Prompt 20 — Full
   // Integration, Stability & Real-World Test Build); all three numbers
-  // confirmed in sync.
-  VERSION: "0.1.19",
+  // confirmed in sync. Bumped to 0.1.20 for Project Prompt 27 (Final
+  // Engineering, Bug Fixing, Compatibility & Stability Pass) — see
+  // CHANGELOG.md's Project Prompt 27 entry.
+  //
+  // RELEASE CANDIDATE LABELING (Project Prompt 28): the three numeric
+  // version fields (this constant + both manifests' header/module arrays)
+  // continue the project's existing sequential integer convention,
+  // unbroken, bumped together as always — now 0.1.21. Manifest version
+  // fields are a strict [major, minor, patch] integer array and cannot
+  // carry a suffix; this string constant is free-form (its only consumer
+  // is a single Content Log line, see main.js), so it alone also carries
+  // the "-rc1" Release Candidate label Project Prompt 28 asks for, making
+  // the RC status visible in-game without touching the manifest format.
+  // The .mcaddon filename carries the same "-rc1" suffix for the same
+  // reason. Prompt 28 is explicitly NOT the final release — see
+  // CHANGELOG.md's Project Prompt 28 entry and ROADMAP.md's Phase 28 note.
+  //
+  // BRANDING PASS (Project Prompt 29): bumped to 0.1.22, "-rc2" — this is
+  // the Release Candidate from Prompt 28 with official branding (pack
+  // icon, logo, UI title branding, branded completion messages) added on
+  // top, no gameplay logic changed. Still explicitly NOT the final
+  // release — Project Prompt 30 owns that designation. See CHANGELOG.md's
+  // Project Prompt 29 entry.
+  //
+  // FINAL RELEASE (Project Prompt 30): 1.0.0 — no "-rc" suffix, no
+  // pre-release label of any kind, per Project Prompt 30's explicit
+  // requirement that the shipped project not remain labeled rc/beta/test/
+  // development. The 0.1.x sequence that ran from Project Prompt 2 through
+  // the two release candidates ends here; 1.0.0 is the first (and, per the
+  // roadmap, final planned) stable release. All four numeric fields — this
+  // constant, BP/manifest.json's header + script module, and
+  // RP/manifest.json's header + resources module — are [1, 0, 0] and were
+  // bumped together, as this file's own standing rule has required since
+  // Project Prompt 15. See CHANGELOG.md's Project Prompt 30 entry and
+  // README.md.
+  VERSION: "1.0.0",
 });
 
 /**

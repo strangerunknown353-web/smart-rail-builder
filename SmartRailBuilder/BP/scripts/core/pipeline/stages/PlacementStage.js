@@ -48,19 +48,31 @@ import { BuildingMode } from "../../../config/BuildModes.js";
  *   approved, nothing recomputed here.
  *
  * PROJECT PROMPT 22 ADDITION: MULTIPLAYER CONFLICT CLAIM (§7/§11)
- *   Immediately before calling `railBuilder.run()` — after the session is
- *   constructed but before the one `await` in this method — this stage now
- *   claims `context.buildPlan.modificationBoundary` (see core/BuildPlan.js)
- *   from `core/ActiveBuildRegistry.js`. If any position is already claimed
- *   by a DIFFERENT player's active build, this stage rejects with
- *   `RAIL_CONFLICT` and NEVER calls `railBuilder.run()` — zero blocks
- *   placed, exactly like every other pre-placement rejection. The claim is
- *   released in the same `finally` block that already unregisters the
- *   session from CancellationWatcher, so it's always freed whether the
- *   build finishes, is cancelled, or throws. See ActiveBuildRegistry.js's
- *   own header for why doing the check-and-claim together, synchronously,
- *   right here (rather than in an earlier, separate stage) is what makes
- *   this race-free.
+ *   Before anything else in this stage — including the mode-specific
+ *   "construction started" chat message — this stage claims
+ *   `context.buildPlan.modificationBoundary` (see core/BuildPlan.js) from
+ *   `core/ActiveBuildRegistry.js`. If any position is already claimed by a
+ *   DIFFERENT player's active build, this stage rejects with `RAIL_CONFLICT`
+ *   and NEVER calls `railBuilder.run()` — zero blocks placed, exactly like
+ *   every other pre-placement rejection. The claim is released in the same
+ *   `finally` block that already unregisters the session from
+ *   CancellationWatcher, so it's always freed whether the build finishes, is
+ *   cancelled, or throws. See ActiveBuildRegistry.js's own header for why
+ *   doing the check-and-claim together, synchronously, right here (rather
+ *   than in an earlier, separate stage) is what makes this race-free.
+ *
+ * BUG FIX (Project Prompt 27): claim BEFORE the "started" message, not after
+ *   The claim used to run after the mode-specific "construction started"
+ *   chat message was already sent, right before the one `await` in this
+ *   method. That ordering meant a player whose build lost a conflicting
+ *   claim (RAIL_CONFLICT) still received "Building N rails going ..." and
+ *   THEN, immediately after, "Another build is already using part of this
+ *   area" — confusing and factually wrong, since no construction had
+ *   started. The claim itself was already correctly race-free (synchronous,
+ *   before the one `await`) — this fix only reorders which synchronous
+ *   statement runs first, moving the claim to the very top of `execute()`,
+ *   before any player-facing message is sent. Zero effect on the race-free
+ *   property or on release timing (still the same `finally`).
  *
  * RESPONSIBILITIES
  *   - Send one chat message right before construction starts — the
@@ -130,6 +142,20 @@ export class PlacementStage {
     const isBridge = buildingMode === BuildingMode.BRIDGE;
     const isUnderground = buildingMode === BuildingMode.UNDERGROUND;
 
+    // Project Prompt 22 §7/§11, reordered Project Prompt 27: claim every
+    // position this build will touch before doing anything else — in
+    // particular, before the "construction started" chat message below, so
+    // a rejected claim never follows a message claiming construction began.
+    // Still synchronous and still before the one `await` further down, so
+    // this remains race-free — see MULTIPLAYER CONFLICT CLAIM above.
+    const claimResult = this._activeBuildRegistry.claim(player.id, context.buildPlan.modificationBoundary);
+    if (!claimResult.claimed) {
+      Logger.warn(
+        `Placement rejected for ${player.name}: ${claimResult.conflictingKeys.length} position(s) already claimed by another active build.`
+      );
+      return PipelineResult.validationFailed(this.name, "RAIL_CONFLICT", LocalizationKeys.VALIDATION_RAIL_CONFLICT);
+    }
+
     let path;
     let actualLength;
     if (isBridge) {
@@ -165,18 +191,6 @@ export class PlacementStage {
         actualLength,
         DirectionUtils.toDisplayName(buildVector.direction),
       ]);
-    }
-
-    // Project Prompt 22 §7/§11: claim every position this build will touch
-    // before placing anything. Synchronous, right here, before the one
-    // `await` below — see this file's MULTIPLAYER CONFLICT CLAIM doc for why
-    // that makes the check-and-claim race-free without any lock.
-    const claimResult = this._activeBuildRegistry.claim(player.id, context.buildPlan.modificationBoundary);
-    if (!claimResult.claimed) {
-      Logger.warn(
-        `Placement rejected for ${player.name}: ${claimResult.conflictingKeys.length} position(s) already claimed by another active build.`
-      );
-      return PipelineResult.validationFailed(this.name, "RAIL_CONFLICT", LocalizationKeys.VALIDATION_RAIL_CONFLICT);
     }
 
     const session = new BuildSession(request, actualLength);

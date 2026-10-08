@@ -8,7 +8,11 @@ import { LocalizationKeys } from "../../localization/LocalizationKeys.js";
  *   Authoritative, mode-aware re-check of the value BuildMenu's
  *   configuration screen collected for the request's `buildingMode` —
  *   `bridgeHeight` for BRIDGE (1-16), `undergroundDepth` for UNDERGROUND
- *   (1-64), nothing for NORMAL. "Never trust UI values alone": a
+ *   (1-20 — see config/BuildModes.js's BUILD_MODE_REGISTRY, the actual
+ *   source of truth this validator reads its bounds from; this docstring
+ *   previously said "1-64" — a stale mismatch against the real enforced
+ *   bound, fixed Project Prompt 27 — see ARCHITECTURE.md's Project Prompt 27
+ *   entry), nothing for NORMAL. "Never trust UI values alone": a
  *   ModalFormData slider already constrains what a player CAN submit, but
  *   this validator is what the pipeline actually relies on, exactly the
  *   same relationship LengthValidator already has with the length slider.
