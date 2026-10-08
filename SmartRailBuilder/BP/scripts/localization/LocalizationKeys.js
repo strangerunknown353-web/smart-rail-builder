@@ -147,6 +147,7 @@ export const LocalizationKeys = Object.freeze({
 
   // --- Project Prompt 9: Pipeline Integration & Player Feedback ---
   ACTIONBAR_PREPARING: "ryzenRailBuilder.actionbar.preparing",
+  ACTIONBAR_CROUCH_HINT: "ryzenRailBuilder.actionbar.crouchHint", // v2.0.0 — one-time hint after a standing (vanilla) rail placement
   ACTIONBAR_ANALYZING_TERRAIN: "ryzenRailBuilder.actionbar.analyzingTerrain",
   ACTIONBAR_CHECKING_INVENTORY: "ryzenRailBuilder.actionbar.checkingInventory",
   ACTIONBAR_VALIDATION_SUCCESSFUL: "ryzenRailBuilder.actionbar.validationSuccessful",

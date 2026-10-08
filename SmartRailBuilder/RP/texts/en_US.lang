@@ -41,6 +41,7 @@ ryzenRailBuilder.path.rejected.lowClearance=§cThere isn't enough headroom above
 
 ## --- Project Prompt 9: Pipeline Integration & Player Feedback ---
 ryzenRailBuilder.actionbar.preparing=Preparing railway...
+ryzenRailBuilder.actionbar.crouchHint=§7Tip: §fCrouch + use a rail§7 to open §eSmart Rail Builder
 ryzenRailBuilder.actionbar.analyzingTerrain=Analyzing terrain...
 ryzenRailBuilder.actionbar.checkingInventory=Checking inventory...
 ryzenRailBuilder.actionbar.validationSuccessful=Validation successful.
@@ -56,7 +57,7 @@ ryzenRailBuilder.construction.complete=§7[Smart Rail Builder]§r §aRailway com
 ## --- Roadmap Phase 15: Three Building Modes & Unified Build Configuration UI (Project Prompt 15) ---
 ryzenRailBuilder.menu.nextButton=Next
 ryzenRailBuilder.menu.modeTitle=Smart Rail Builder — Building Mode
-ryzenRailBuilder.menu.modeBody=Choose how Smart Rail Builder should build your railway:\n\n§lNormal§r - Build a standard railway along the terrain.\n§lBridge§r - Build an elevated railway with supports.\n§lUnderground§r - Build a protected railway tunnel underground.
+ryzenRailBuilder.menu.modeBody=Choose how Smart Rail Builder should build your railway:\n\n§lNormal§r - Build a standard railway along the terrain.\n§lBridge§r - Build an elevated railway with supports.\n§lUnderground§r - Build a protected railway tunnel underground.\n\n§7Tip: stand (don't crouch) to place rails one at a time.
 ryzenRailBuilder.mode.normal.label=Normal
 ryzenRailBuilder.mode.bridge.label=Bridge
 ryzenRailBuilder.mode.underground.label=Underground

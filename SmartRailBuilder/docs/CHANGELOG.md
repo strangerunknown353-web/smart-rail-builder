@@ -1369,3 +1369,20 @@ consecutive session on a base that has still never been confirmed in-game — se
 - **Not yet confirmed in-game** — this session's own instructions were explicit that
   claiming otherwise without an actual Minecraft launch would be dishonest; none of
   this project's 26 sessions has been play-tested by a human.
+
+## [2.0.0] — in progress
+
+### v2 Step 1 — Crouch-to-open & v1.0.0 source sync — 2026-10-08
+- Repository source synced to the shipped v1.0.0 packs (Project Prompts 27–30: claim-before-message
+  fix, branding strings, pack icons, 1.0.0 manifests). The repo had stopped at 0.1.19.
+- **Crouch-to-open:** the build menu now opens only when the player is crouching (sneaking) and uses
+  a rail on a block. Standing players place rails one at a time exactly like vanilla — the addon no
+  longer cancels that placement. Works with the touch-control sneak toggle too.
+- New `core/InteractionGate.js` holds the decision (IGNORE / VANILLA / OPEN_MENU); `main.js` only
+  acts on it. `INTERACTION.REQUIRE_SNEAK_TO_OPEN_MENU` in `config/Constants.js` restores the v1
+  always-open behavior if set to `false`.
+- One-time actionbar hint (`ryzenRailBuilder.actionbar.crouchHint`) the first time per session a
+  player places a rail standing up; mode menu body gained a matching tip line.
+- Tests: new `tests/interactionGate.test.mjs` (decision table, real `main.js` wiring, and a check that
+  every `LocalizationKeys` value exists in `en_US.lang`). The test-only `@minecraft/server` mock gained
+  `system.run` (queued, flushed by tests) and `world.beforeEvents.playerInteractWithBlock`.

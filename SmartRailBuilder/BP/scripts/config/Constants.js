@@ -94,6 +94,19 @@ export const LOGGING = Object.freeze({
 });
 
 /**
+ * How a rail-item interaction is routed (v2.0.0, Project Step 1). Consumed by
+ * core/InteractionGate.js via main.js.
+ */
+export const INTERACTION = Object.freeze({
+  /**
+   * true: only crouch + use opens the build menu; standing + use places a
+   * single rail the vanilla way. false: v1.0.0 behavior (every use opens the
+   * menu and vanilla placement is always cancelled).
+   */
+  REQUIRE_SNEAK_TO_OPEN_MENU: true,
+});
+
+/**
  * Progress feedback configuration. Consumed by ui/ProgressReporter.js once the
  * build pipeline exists (Roadmap Phase 9).
  */

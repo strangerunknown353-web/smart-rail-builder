@@ -56,12 +56,14 @@
 
 import { system, world } from "@minecraft/server";
 
-import { ADDON } from "./config/Constants.js";
+import { ADDON, INTERACTION } from "./config/Constants.js";
 import { RAIL_ITEM_IDS } from "./config/RailConfig.js";
 import { Logger } from "./utils/Logger.js";
 
 import { BuildOrchestrator } from "./core/BuildOrchestrator.js";
 import { CancellationWatcher } from "./core/CancellationWatcher.js";
+import { InteractionGate, InteractionDecision } from "./core/InteractionGate.js";
+import { LocalizationKeys } from "./localization/LocalizationKeys.js";
 
 import { BuildPipeline } from "./core/pipeline/BuildPipeline.js";
 import { RailDetectionStage } from "./core/pipeline/stages/RailDetectionStage.js";
@@ -190,10 +192,13 @@ function buildDependencyGraph() {
 
   const orchestrator = new BuildOrchestrator({ pipeline, messageService });
 
-  return { orchestrator, cancellationWatcher };
+  return { orchestrator, cancellationWatcher, messageService };
 }
 
-const { orchestrator, cancellationWatcher } = buildDependencyGraph();
+const { orchestrator, cancellationWatcher, messageService } = buildDependencyGraph();
+const interactionGate = new InteractionGate(RAIL_ITEM_IDS, {
+  requireSneak: INTERACTION.REQUIRE_SNEAK_TO_OPEN_MENU,
+});
 
 // A build can now run for many ticks (system.runJob), so live cancellation
 // detection matters for the first time this session — initialized exactly
@@ -213,23 +218,37 @@ cancellationWatcher.initialize();
  * replacement. `isFirstEvent` guards against held-button repeats;
  * BuildOrchestrator's per-player Set guards against overlapping first-presses.
  *
+ * CROUCH-TO-OPEN (v2.0.0): only a crouching player opens the build menu. A
+ * standing player's interaction is left completely untouched so the game
+ * places one rail normally — see core/InteractionGate.js.
+ *
  * @param {import("@minecraft/server").PlayerInteractWithBlockBeforeEvent} event
  */
 function handleRailItemInteraction(event) {
-  const itemStack = event.itemStack;
-  if (!itemStack || !RAIL_ITEM_IDS.includes(itemStack.typeId)) return;
-  if (!event.isFirstEvent) return; // ignore repeats fired while the button is held
+  const decision = interactionGate.decide(event);
+  if (decision === InteractionDecision.IGNORE) return;
 
   // event.player and itemStack.typeId are captured into locals now, since
   // beforeEvent data is only valid for the duration of this synchronous
   // callback — system.run() below runs on a later tick.
   const player = event.player;
-  const railTypeId = itemStack.typeId;
+  const railTypeId = event.itemStack.typeId;
 
-  // Cancel the vanilla rail placement unconditionally: this addon owns every
-  // interaction with a rail item, even ones BuildOrchestrator will go on to
-  // reject (e.g. a duplicate trigger) — the player should never see a
-  // vanilla-placed rail underneath our own UI.
+  if (decision === InteractionDecision.VANILLA) {
+    // Leave event.cancel alone: the game places a single rail. The first
+    // time per session, tell the player how to reach the build menu now
+    // that a plain tap no longer opens it. Deferred because actionbar
+    // writes aren't allowed in restricted-execution mode.
+    if (interactionGate.takeHint(player.id)) {
+      system.run(() => messageService.sendActionBar(player, LocalizationKeys.ACTIONBAR_CROUCH_HINT));
+    }
+    return;
+  }
+
+  // OPEN_MENU: cancel the vanilla rail placement — the player should never
+  // see a vanilla-placed rail underneath our own UI, even for an
+  // interaction BuildOrchestrator goes on to reject (e.g. a duplicate
+  // trigger).
   event.cancel = true;
 
   // ModalFormData.show() can't be called in restricted-execution mode
