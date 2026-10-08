@@ -118,3 +118,12 @@ ryzenRailBuilder.path.rejected.bridgeLengthTooShort=§cHeight %1$s needs a railw
 ryzenRailBuilder.status.cannotBuild=§cSTATUS: CANNOT BUILD
 ryzenRailBuilder.validation.dimensionChanged=§cYou changed dimensions before construction could begin. Please try again.
 ryzenRailBuilder.validation.railConflict=§cAnother build is already using part of this area. Please wait or choose a different location.
+
+## v2.0.0 — Repeat last build / Undo last build
+ryzenRailBuilder.menu.repeatNormal=§2Repeat last build§r\n§8Normal · %1$s blocks
+ryzenRailBuilder.menu.repeatBridge=§2Repeat last build§r\n§8Bridge · %1$s blocks · height %2$s
+ryzenRailBuilder.menu.repeatUnderground=§2Repeat last build§r\n§8Underground · %1$s blocks · depth %2$s
+ryzenRailBuilder.menu.undoButton=§cUndo last build
+ryzenRailBuilder.undo.complete=§7[Smart Rail Builder]§r §aUndo complete! Restored %1$s blocks and returned %2$s items.
+ryzenRailBuilder.undo.skipped=§e%1$s block(s) changed since the build were left as they are.
+ryzenRailBuilder.undo.nothing=§eThere is no build to undo.

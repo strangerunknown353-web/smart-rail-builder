@@ -77,6 +77,9 @@ import { BuildPlanStage } from "./core/pipeline/stages/BuildPlanStage.js";
 import { PlacementStage } from "./core/pipeline/stages/PlacementStage.js";
 import { CompletionStage } from "./core/pipeline/stages/CompletionStage.js";
 import { ActiveBuildRegistry } from "./core/ActiveBuildRegistry.js";
+import { BuildHistory } from "./core/BuildHistory.js";
+import { UndoService } from "./core/UndoService.js";
+import { PlayerBuildSettings } from "./core/PlayerBuildSettings.js";
 
 import { ValidationManager } from "./core/validation/ValidationManager.js";
 import { PlayerValidator } from "./core/validation/PlayerValidator.js";
@@ -159,6 +162,10 @@ function buildDependencyGraph() {
   const bridgeValidation = new BridgeValidation(); // Project Prompt 16
   const undergroundValidation = new UndergroundValidation(); // Project Prompt 17
   const activeBuildRegistry = new ActiveBuildRegistry(); // Project Prompt 22 — multiplayer position-conflict claims, see core/ActiveBuildRegistry.js
+  // v2.0.0 Step 2 — "Repeat last build" + "Undo last build"
+  const buildHistory = new BuildHistory();
+  const undoService = new UndoService(buildHistory, inventoryManager, messageService);
+  const buildSettings = new PlayerBuildSettings();
 
   // --- Validation framework: one validator per concern, order matters
   // (cheapest/most-fundamental checks first). ---
@@ -179,14 +186,14 @@ function buildDependencyGraph() {
   // see §24 for the buildReady-shortcut history and §32 for the real fix). ---
   const pipeline = new BuildPipeline([
     new RailDetectionStage(),
-    new BuildRequestCreationStage(buildMenu, inventoryManager), // inventoryManager added in the bugfix pass before Project Prompt 18 — bridge material scanning
+    new BuildRequestCreationStage(buildMenu, inventoryManager, buildSettings, undoService), // inventoryManager added in the bugfix pass before Project Prompt 18 — bridge material scanning
     new ValidationStage(validationManager, messageService),
     new ModeAvailabilityStage(), // Project Prompt 15 — kept in place for future modes; as of Project Prompt 17 all three permanent modes are implemented, so this gates nothing today
     new TerrainScanningStage(terrainScanner, pathValidator, messageService, bridgeValidation, undergroundValidation),
     new InventoryStage(inventoryManager, resourceValidator, messageService),
     new FinalSafetyCheckStage(terrainScanner, messageService),
     new BuildPlanStage(inventoryManager, resourceValidator), // Project Prompt 22 — final revalidation + context.buildPlan
-    new PlacementStage(railBuilder, cancellationWatcher, messageService, strategiesByMode, activeBuildRegistry),
+    new PlacementStage(railBuilder, cancellationWatcher, messageService, strategiesByMode, activeBuildRegistry, buildHistory),
     new CompletionStage(messageService),
   ]);
 

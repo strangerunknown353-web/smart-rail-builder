@@ -2,6 +2,7 @@ import { BlockPermutation } from "@minecraft/server";
 import { UNBREAKABLE_BLOCK_ID_SET } from "../config/UnbreakableBlockRegistry.js";
 import { HAZARD_BLOCK_ID_SET } from "../config/HazardRegistry.js";
 import { readBlock } from "../utils/BlockReader.js";
+import { writeBlock } from "../core/BuildJournal.js";
 
 /**
  * BridgeSupportBuilder.js
@@ -42,10 +43,11 @@ export class BridgeSupportBuilder {
   /**
    * @param {import("@minecraft/server").Dimension} dimension
    * @param {{x: number, y: number, z: number}} position
+   * @param {{journal?: import("../core/BuildJournal.js").BuildJournal, refundItemId?: string}} [options] v2.0.0 — undo journaling; refundItemId is the item deducted for this block (Survival only).
    * @param {string} materialId Vanilla block type ID — the player's chosen bridge material, see core/BuildSession.js's `bridgeMaterialId`.
    * @returns {SupportPlacementResult}
    */
-  placeBlock(dimension, position, materialId) {
+  placeBlock(dimension, position, materialId, { journal, refundItemId } = {}) {
     const read = readBlock(dimension, position);
     if (read.status !== "OK") {
       return { success: false, reason: "UNLOADED" };
@@ -66,7 +68,7 @@ export class BridgeSupportBuilder {
     // Same proven mechanism TunnelExcavator/RailPermutationBuilder already
     // use — BlockPermutation.resolve() + setPermutation() — reusing a
     // confirmed-working call rather than a hypothetical shortcut.
-    block.setPermutation(BlockPermutation.resolve(materialId));
+    writeBlock(block, position, BlockPermutation.resolve(materialId), journal, refundItemId);
     return { success: true };
   }
 }

@@ -2,6 +2,7 @@ import { BlockPermutation } from "@minecraft/server";
 import { UNBREAKABLE_BLOCK_ID_SET } from "../config/UnbreakableBlockRegistry.js";
 import { HAZARD_BLOCK_ID_SET } from "../config/HazardRegistry.js";
 import { readBlock } from "../utils/BlockReader.js";
+import { writeBlock } from "../core/BuildJournal.js";
 
 /**
  * TunnelExcavator.js
@@ -65,11 +66,21 @@ import { readBlock } from "../utils/BlockReader.js";
  * @property {string} [reason] One of "UNBREAKABLE", "HAZARD", "UNLOADED". Present only if !success.
  */
 
+// v2.0.0 optimization: resolve the air permutation once per world session
+// instead of once per excavated block (a 64-block tunnel row loop used to
+// call BlockPermutation.resolve("minecraft:air") hundreds of times).
+let _airPermutation;
+function airPermutation() {
+  _airPermutation ??= BlockPermutation.resolve("minecraft:air");
+  return _airPermutation;
+}
+
 export class TunnelExcavator {
   /**
    * @param {import("@minecraft/server").Dimension} dimension
    * @param {ReadonlyArray<{x: number, y: number, z: number}>} excavationPositions
    * @param {Object} [options]
+   * @param {import("../core/BuildJournal.js").BuildJournal} [options.journal] v2.0.0 — records each excavated block for undo.
    * @param {boolean} [options.allowLiquid] Added Project Prompt 18. Default
    *   false, preserving this method's original behavior for every existing
    *   caller (StraightRailStrategy's Normal Mode hill-tunnels — water was
@@ -84,7 +95,7 @@ export class TunnelExcavator {
    *   protected by the existing safety rules").
    * @returns {ExcavationResult}
    */
-  excavateRow(dimension, excavationPositions, { allowLiquid = false } = {}) {
+  excavateRow(dimension, excavationPositions, { allowLiquid = false, journal } = {}) {
     for (const position of excavationPositions) {
       const read = readBlock(dimension, position);
       if (read.status !== "OK") {
@@ -113,7 +124,7 @@ export class TunnelExcavator {
       // confirmed working in this addon. Reusing a proven call over an
       // unverified one, consistent with this project's isSolid lesson
       // (§34) about not trusting an assumed API without confirmation.
-      block.setPermutation(BlockPermutation.resolve("minecraft:air"));
+      writeBlock(block, position, airPermutation(), journal);
     }
 
     return { success: true };
@@ -139,9 +150,10 @@ export class TunnelExcavator {
    * @param {import("@minecraft/server").Dimension} dimension
    * @param {ReadonlyArray<{x: number, y: number, z: number}>} positions
    * @param {string} materialId
+   * @param {import("../core/BuildJournal.js").BuildJournal} [journal] v2.0.0 — records each seal for undo.
    * @returns {number} How many seal blocks were actually placed.
    */
-  sealPositions(dimension, positions, materialId) {
+  sealPositions(dimension, positions, materialId, journal) {
     const permutation = BlockPermutation.resolve(materialId);
     let placed = 0;
 
@@ -151,7 +163,7 @@ export class TunnelExcavator {
       const block = read.block;
       if (UNBREAKABLE_BLOCK_ID_SET.has(block.typeId) || HAZARD_BLOCK_ID_SET.has(block.typeId)) continue;
 
-      block.setPermutation(permutation);
+      writeBlock(block, position, permutation, journal);
       placed += 1;
     }
 

@@ -1389,3 +1389,28 @@ consecutive session on a base that has still never been confirmed in-game — se
 - New v2 logo: pixel-style "SMART RAIL BUILDER" title over a sunset railway with a gold gear badge.
   Full size at `docs/logo.png` (1024×1024); 256×256 copies replace both `pack_icon.png`s. Drawn by
   `tools/make_logo.py` (Pillow) so it can be regenerated or tweaked.
+
+### v2 Step 2 — Repeat last build, remembered settings, Undo last build — 2026-10-08
+- `core/BuildJournal.js`: every block write a build makes goes through `journal.write()` (or the
+  `writeBlock()` helper), which records the previous permutation, the placed typeId and the item
+  refunded for it. All six write sites (three strategies, `TunnelExcavator.excavateRow/sealPositions`,
+  `BridgeSupportBuilder.placeBlock`) are journaled; `BuildSession.journal` holds it.
+- `core/BuildHistory.js` keeps each player's last journal (in memory); `PlacementStage` records it in
+  its `finally`, so partial/cancelled builds are undoable.
+- `core/UndoService.js` replays a journal newest-first via `system.runJob` (32 restores/tick), restoring
+  only positions that still hold what the build placed, refunding only restored writes, and reporting
+  restored/skipped counts. New `InventoryManager.giveItems()` (stacks by max size, drops overflow).
+- `core/PlayerBuildSettings.js` remembers mode/length/height-or-depth/material per player (memory +
+  `smart_rail_builder:last_build` dynamic property), re-validated on every read.
+- `BuildMenu.promptForMode(player, {lastSettings, canUndo})` adds the Repeat and Undo buttons and returns
+  `{action: MODE|REPEAT|UNDO}`; `promptForConfiguration` accepts `defaultModeValue`. With no options the
+  screen is identical to v1.
+- `BuildRequestCreationStage` handles Undo (runs it, ends the pipeline as CANCELLED/UNDO_PERFORMED) and
+  Repeat (skips material if still carried, skips configuration, keeps the summary), and saves settings on
+  confirm.
+- Optimizations: cached rail permutations (`RailPermutationBuilder`), cached air permutation
+  (`TunnelExcavator`).
+- Tests: `tests/undoRepeat.test.mjs` (54 assertions: undo of Normal/Underground/Bridge restores the exact
+  world and inventory, skip-and-no-double-refund, repeat flow, settings validation/persistence, real menu
+  button mapping, journal failure safety) and `tests/realGraphV2.mjs` helper. Mocks: restorable block
+  permutation snapshots, `ItemStack`, real-shaped `Container.addItem(itemStack)`.

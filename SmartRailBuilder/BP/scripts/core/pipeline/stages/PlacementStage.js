@@ -114,9 +114,10 @@ export class PlacementStage {
    * @param {Readonly<Record<string, import("../../../builder/strategies/RailBuildStrategy.js")>>} strategiesByMode
    *   Added Project Prompt 16 — see ROADMAP PHASE 16 CHANGE above.
    * @param {import("../../ActiveBuildRegistry.js").ActiveBuildRegistry} activeBuildRegistry
+   * @param {import("../../BuildHistory.js").BuildHistory} [buildHistory] v2.0.0 — undo history; optional.
    *   Added Project Prompt 22 — see MULTIPLAYER CONFLICT CLAIM above.
    */
-  constructor(railBuilder, cancellationWatcher, messageService, strategiesByMode, activeBuildRegistry) {
+  constructor(railBuilder, cancellationWatcher, messageService, strategiesByMode, activeBuildRegistry, buildHistory) {
     this.name = "PlacementStage";
     /** @private */
     this._railBuilder = railBuilder;
@@ -128,6 +129,8 @@ export class PlacementStage {
     this._strategiesByMode = strategiesByMode;
     /** @private */
     this._activeBuildRegistry = activeBuildRegistry;
+    /** @private v2.0.0 — receives each build's journal for "Undo last build". Optional. */
+    this._buildHistory = buildHistory;
   }
 
   /**
@@ -245,6 +248,9 @@ export class PlacementStage {
     } finally {
       this._cancellationWatcher.unregisterSession(player.id);
       this._activeBuildRegistry.release(player.id);
+      // v2.0.0: complete, partial and cancelled builds are all undoable —
+      // the journal holds exactly what was actually changed.
+      this._buildHistory?.record(player.id, session.journal);
     }
   }
 }

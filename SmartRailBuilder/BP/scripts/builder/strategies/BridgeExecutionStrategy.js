@@ -199,7 +199,7 @@ export class BridgeExecutionStrategy {
         const permutation = step.slopeDirection
           ? buildAscendingRailPermutation(session.railTypeId, step.slopeDirection)
           : buildStraightRailPermutation(session.railTypeId, session.direction);
-        block.setPermutation(permutation);
+        session.journal.write(block, step.position, permutation, isSurvival ? session.railTypeId : undefined);
       } catch (error) {
         Logger.error(`Bridge build stopped for ${player.name}: rail placement failed.`, error);
         return this._result(session, "PLACEMENT_ERROR");
@@ -245,7 +245,10 @@ export class BridgeExecutionStrategy {
       return "OUT_OF_BRIDGE_MATERIAL";
     }
 
-    const placement = this._bridgeSupportBuilder.placeBlock(dimension, position, materialId);
+    const placement = this._bridgeSupportBuilder.placeBlock(dimension, position, materialId, {
+      journal: session.journal,
+      refundItemId: isSurvival ? materialId : undefined,
+    });
     if (!placement.success) {
       Logger.warn(`Bridge build stopped for ${player.name}: ${phaseLabel} placement failed (${placement.reason}).`);
       return `${phaseLabel}_${placement.reason}`;

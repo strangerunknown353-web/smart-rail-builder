@@ -1,4 +1,4 @@
-import { BlockPermutation } from "@minecraft/server";
+import { BlockPermutation, ItemStack } from "@minecraft/server";
 import { RAIL_ITEM_ID_SET } from "../config/RailConfig.js";
 import { HAZARD_BLOCK_ID_SET } from "../config/HazardRegistry.js";
 import { UNBREAKABLE_BLOCK_ID_SET } from "../config/UnbreakableBlockRegistry.js";
@@ -275,6 +275,38 @@ export class InventoryManager {
           `${remaining} short — inventory changed unexpectedly between verification and deduction.`
       );
     }
+  }
+
+  /**
+   * v2.0.0 (Undo refunds): gives `amount` of `typeId` back to the player,
+   * split into stacks of the item's max stack size. Anything that doesn't
+   * fit in the inventory is dropped at the player's feet so nothing is lost.
+   *
+   * @param {import("@minecraft/server").Player} player
+   * @param {string} typeId
+   * @param {number} amount
+   * @returns {number} How many items were given (inventory + dropped).
+   */
+  giveItems(player, typeId, amount) {
+    const container = player.getComponent("minecraft:inventory")?.container;
+    let given = 0;
+    try {
+      const maxStack = new ItemStack(typeId, 1).maxAmount || 64;
+      let remaining = amount;
+      while (remaining > 0) {
+        const count = Math.min(remaining, maxStack);
+        const stack = new ItemStack(typeId, count);
+        const leftover = container ? container.addItem(stack) : stack;
+        if (leftover) {
+          player.dimension.spawnItem(leftover, player.location);
+        }
+        remaining -= count;
+        given += count;
+      }
+    } catch (error) {
+      Logger.error(`giveItems: failed to return ${amount} of ${typeId} to ${player.name} (${given} given).`, error);
+    }
+    return given;
   }
 
   /**

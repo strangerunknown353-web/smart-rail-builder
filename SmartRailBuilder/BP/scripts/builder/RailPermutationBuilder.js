@@ -86,6 +86,26 @@ const POWERED_RAIL_TYPE_IDS = Object.freeze([
  * highest-risk unconfirmed assumption.
  * @type {Readonly<Record<string, number>>}
  */
+// v2.0.0 optimization: a build places the same few rail permutations over
+// and over (one rail type x 2 straight orientations + 4 slopes), so each
+// resolved BlockPermutation is cached by type + rail_direction instead of
+// being re-resolved for every rail. A failed resolve throws before caching,
+// so an invalid type is never remembered.
+const _permutationCache = new Map();
+
+function resolveRailPermutation(railTypeId, railDirection) {
+  const key = `${railTypeId}|${railDirection}`;
+  let permutation = _permutationCache.get(key);
+  if (!permutation) {
+    const states = POWERED_RAIL_TYPE_IDS.includes(railTypeId)
+      ? { rail_direction: railDirection, rail_data_bit: false }
+      : { rail_direction: railDirection };
+    permutation = BlockPermutation.resolve(railTypeId, states);
+    _permutationCache.set(key, permutation);
+  }
+  return permutation;
+}
+
 const ASCENDING_RAIL_DIRECTION = Object.freeze({
   [CardinalDirection.EAST]: 2,
   [CardinalDirection.WEST]: 3,
@@ -102,11 +122,7 @@ export function buildStraightRailPermutation(railTypeId, direction) {
   const isNorthSouth = direction === CardinalDirection.NORTH || direction === CardinalDirection.SOUTH;
   const railDirection = isNorthSouth ? 0 : 1;
 
-  const states = POWERED_RAIL_TYPE_IDS.includes(railTypeId)
-    ? { rail_direction: railDirection, rail_data_bit: false }
-    : { rail_direction: railDirection };
-
-  return BlockPermutation.resolve(railTypeId, states);
+  return resolveRailPermutation(railTypeId, railDirection);
 }
 
 /**
@@ -128,9 +144,5 @@ export function buildAscendingRailPermutation(railTypeId, ascendingDirection) {
     throw new Error(`RailPermutationBuilder: unknown ascending direction "${ascendingDirection}"`);
   }
 
-  const states = POWERED_RAIL_TYPE_IDS.includes(railTypeId)
-    ? { rail_direction: railDirection, rail_data_bit: false }
-    : { rail_direction: railDirection };
-
-  return BlockPermutation.resolve(railTypeId, states);
+  return resolveRailPermutation(railTypeId, railDirection);
 }

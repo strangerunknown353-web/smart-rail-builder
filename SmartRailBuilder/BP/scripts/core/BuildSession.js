@@ -56,6 +56,8 @@
  *   `dimension` it's given, so it stays easy to reason about and to unit test.
  */
 
+import { BuildJournal } from "./BuildJournal.js";
+
 export class BuildSession {
   /**
    * @param {import("./BuildRequest.js").BuildRequest} buildRequest
@@ -81,6 +83,9 @@ export class BuildSession {
     this.sessionId = buildRequest.sessionId;
     /** @readonly */
     this.startedAt = Date.now();
+
+    /** v2.0.0 — every block this build changes, for undo. See core/BuildJournal.js. */
+    this.journal = new BuildJournal(this.dimension);
 
     this.blocksPlaced = 0;
     this.cancelled = false;

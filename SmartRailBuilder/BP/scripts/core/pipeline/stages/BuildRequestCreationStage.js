@@ -4,6 +4,7 @@ import { LocalizationKeys } from "../../../localization/LocalizationKeys.js";
 import { BuildRequest } from "../../BuildRequest.js";
 import { BuildVector } from "../../BuildVector.js";
 import { PipelineResult } from "../PipelineResult.js";
+import { MenuAction } from "../../../ui/BuildMenu.js";
 
 /**
  * BuildRequestCreationStage.js
@@ -87,13 +88,19 @@ export class BuildRequestCreationStage {
   /**
    * @param {import("../../../ui/BuildMenu.js").BuildMenu} buildMenu
    * @param {import("../../../inventory/InventoryManager.js").InventoryManager} inventoryManager Added in the bugfix pass before Project Prompt 18.
+   * @param {import("../../PlayerBuildSettings.js").PlayerBuildSettings} [buildSettings] v2.0.0 — enables "Repeat last build" and remembered slider values.
+   * @param {import("../../UndoService.js").UndoService} [undoService] v2.0.0 — enables "Undo last build".
    */
-  constructor(buildMenu, inventoryManager) {
+  constructor(buildMenu, inventoryManager, buildSettings, undoService) {
     this.name = "BuildRequestCreationStage";
     /** @private */
     this._buildMenu = buildMenu;
     /** @private */
     this._inventoryManager = inventoryManager;
+    /** @private */
+    this._buildSettings = buildSettings;
+    /** @private */
+    this._undoService = undoService;
   }
 
   /**
@@ -101,15 +108,33 @@ export class BuildRequestCreationStage {
    * @returns {Promise<PipelineResult>}
    */
   async execute(context) {
-    // --- Screen 1: Building Mode ---
-    const modeResult = await this._buildMenu.promptForMode(context.player);
+    // --- Screen 1: Building Mode (+ v2.0.0 Repeat / Undo shortcuts) ---
+    const lastSettings = this._buildSettings?.get(context.player) ?? null;
+    const modeResult = await this._buildMenu.promptForMode(context.player, {
+      lastSettings,
+      canUndo: this._undoService?.canUndo(context.player) ?? false,
+    });
     if (modeResult.cancelled) {
       return PipelineResult.cancelled(this.name, "MODE_MENU_CLOSED");
     }
 
+    // v2.0.0: Undo runs here and ends the pipeline — nothing is built.
+    // CANCELLED keeps BuildOrchestrator silent; UndoService sends its own
+    // result message.
+    if (modeResult.action === MenuAction.UNDO) {
+      await this._undoService.undoLast(context.player);
+      return PipelineResult.cancelled(this.name, "UNDO_PERFORMED");
+    }
+
+    // v2.0.0: Repeat reuses the last confirmed settings and skips the
+    // material and configuration screens. The summary screen still shows,
+    // because direction always comes from where the player faces NOW.
+    const repeating = modeResult.action === MenuAction.REPEAT && lastSettings !== null;
+    const mode = repeating ? lastSettings.mode : modeResult.mode;
+
     // --- Screen 1.5 (BRIDGE only): Bridge Material ---
     let materialId;
-    if (modeResult.mode === BuildingMode.BRIDGE) {
+    if (mode === BuildingMode.BRIDGE) {
       const materials = this._inventoryManager.scanPlaceableMaterials(context.player);
 
       // Not a menu-close cancellation — the player did nothing wrong, they
@@ -122,22 +147,35 @@ export class BuildRequestCreationStage {
         return PipelineResult.validationFailed(this.name, "NO_BRIDGE_MATERIALS", LocalizationKeys.MENU_NO_MATERIALS_AVAILABLE);
       }
 
-      const materialResult = await this._buildMenu.promptForBridgeMaterial(context.player, materials);
-      if (materialResult.cancelled) {
-        return PipelineResult.cancelled(this.name, "MATERIAL_MENU_CLOSED");
+      // Repeat keeps the last material only while the player still carries
+      // it; otherwise they pick again rather than failing later.
+      if (repeating && materials.some((material) => material.typeId === lastSettings.materialId)) {
+        materialId = lastSettings.materialId;
+      } else {
+        const materialResult = await this._buildMenu.promptForBridgeMaterial(context.player, materials);
+        if (materialResult.cancelled) {
+          return PipelineResult.cancelled(this.name, "MATERIAL_MENU_CLOSED");
+        }
+        materialId = materialResult.materialId;
       }
-      materialId = materialResult.materialId;
     }
 
     // --- Screen 2: Mode Configuration (if applicable) + Railway Length ---
-    const configResult = await this._buildMenu.promptForConfiguration(context.player, modeResult.mode, {
-      minLength: LENGTH_PRESETS.MIN,
-      maxLength: LENGTH_PRESETS.MAX_SURVIVAL,
-      step: LENGTH_PRESETS.STEP,
-      defaultLength: LENGTH_PRESETS.DEFAULT,
-    });
-    if (configResult.cancelled) {
-      return PipelineResult.cancelled(this.name, "CONFIG_MENU_CLOSED");
+    // Skipped on Repeat; otherwise pre-filled from the last build (v2.0.0).
+    let configResult;
+    if (repeating) {
+      configResult = { cancelled: false, length: lastSettings.length, modeValue: lastSettings.modeValue };
+    } else {
+      configResult = await this._buildMenu.promptForConfiguration(context.player, mode, {
+        minLength: LENGTH_PRESETS.MIN,
+        maxLength: LENGTH_PRESETS.MAX_SURVIVAL,
+        step: LENGTH_PRESETS.STEP,
+        defaultLength: lastSettings?.length ?? LENGTH_PRESETS.DEFAULT,
+        defaultModeValue: lastSettings?.mode === mode ? lastSettings.modeValue : undefined,
+      });
+      if (configResult.cancelled) {
+        return PipelineResult.cancelled(this.name, "CONFIG_MENU_CLOSED");
+      }
     }
 
     // Computed here (not earlier) so the summary screen shows a real
@@ -148,7 +186,7 @@ export class BuildRequestCreationStage {
     // --- Screen 3: Final Build Summary ---
     const summaryResult = await this._buildMenu.promptForSummary(context.player, {
       railTypeId: context.railTypeId,
-      mode: modeResult.mode,
+      mode,
       modeValue: configResult.modeValue,
       materialId,
       length: configResult.length,
@@ -158,12 +196,21 @@ export class BuildRequestCreationStage {
       return PipelineResult.cancelled(this.name, summaryResult.cancelled ? "SUMMARY_MENU_CLOSED" : "SUMMARY_CANCELLED");
     }
 
+    // v2.0.0: remembered as soon as the player confirms, so "Repeat" offers
+    // these settings next time even if this build later fails validation.
+    this._buildSettings?.save(context.player, {
+      mode,
+      length: configResult.length,
+      modeValue: configResult.modeValue,
+      materialId,
+    });
+
     // Re-computed fresh here, right before actually constructing the
     // request — the summary screen was itself another async round trip.
     // See this file's header for why this isn't considered redundant.
     buildVector = BuildVector.fromPlayer(context.player);
 
-    const modeDef = BUILD_MODE_REGISTRY[modeResult.mode];
+    const modeDef = BUILD_MODE_REGISTRY[mode];
     context.request = new BuildRequest({
       player: context.player,
       dimension: context.player.dimension,
@@ -171,7 +218,7 @@ export class BuildRequestCreationStage {
       requestedLength: configResult.length,
       buildVector,
       sessionId: generateSessionId(context.player.id),
-      buildingMode: modeResult.mode,
+      buildingMode: mode,
       bridgeHeight: modeDef?.configField === "bridgeHeight" ? configResult.modeValue : undefined,
       bridgeMaterialId: materialId,
       undergroundDepth: modeDef?.configField === "undergroundDepth" ? configResult.modeValue : undefined,

@@ -128,9 +128,28 @@ import { Logger } from "../utils/Logger.js";
  */
 
 /**
+ * What the player picked on the mode screen (v2.0.0). MODE is one of the
+ * building modes; REPEAT and UNDO are the optional shortcut buttons.
+ * @enum {string}
+ */
+export const MenuAction = Object.freeze({
+  MODE: "MODE",
+  REPEAT: "REPEAT",
+  UNDO: "UNDO",
+});
+
+/** Repeat-button label key per mode — each shows that mode's own settings. */
+const REPEAT_LABEL_KEYS = Object.freeze({
+  [BuildingMode.NORMAL]: LocalizationKeys.MENU_REPEAT_NORMAL,
+  [BuildingMode.BRIDGE]: LocalizationKeys.MENU_REPEAT_BRIDGE,
+  [BuildingMode.UNDERGROUND]: LocalizationKeys.MENU_REPEAT_UNDERGROUND,
+});
+
+/**
  * @typedef {Object} ModeMenuResult
  * @property {boolean} cancelled
- * @property {import("../config/BuildModes.js").BuildingMode} [mode] Present only when cancelled is false.
+ * @property {string} [action] One of MenuAction's values. Present only when cancelled is false.
+ * @property {import("../config/BuildModes.js").BuildingMode} [mode] Present when action is MODE.
  */
 
 /**
@@ -143,16 +162,35 @@ import { Logger } from "../utils/Logger.js";
 export class BuildMenu {
   /**
    * STEP: Select Building Mode.
+   *
+   * v2.0.0: when `lastSettings` is given, a "Repeat last build" button is
+   * shown first; when `canUndo` is true, an "Undo last build" button is
+   * shown last. With neither, the screen is exactly the v1 mode list.
+   *
    * @param {import("@minecraft/server").Player} player
+   * @param {{lastSettings?: import("../core/PlayerBuildSettings.js").LastBuildSettings|null, canUndo?: boolean}} [options]
    * @returns {Promise<ModeMenuResult>}
    */
-  async promptForMode(player) {
+  async promptForMode(player, { lastSettings = null, canUndo = false } = {}) {
     const form = new ActionFormData()
       .title({ translate: LocalizationKeys.MENU_MODE_TITLE })
       .body({ translate: LocalizationKeys.MENU_MODE_BODY });
 
+    /** @type {Array<{action: string, mode?: string}>} button index -> meaning */
+    const buttons = [];
+    if (lastSettings && REPEAT_LABEL_KEYS[lastSettings.mode]) {
+      const repeatWith = [lastSettings.length];
+      if (lastSettings.modeValue !== undefined) repeatWith.push(lastSettings.modeValue);
+      form.button({ translate: REPEAT_LABEL_KEYS[lastSettings.mode], with: repeatWith.map(String) });
+      buttons.push({ action: MenuAction.REPEAT });
+    }
     for (const modeId of BUILD_MODE_ORDER) {
       form.button({ translate: BUILD_MODE_REGISTRY[modeId].buttonLabelKey });
+      buttons.push({ action: MenuAction.MODE, mode: modeId });
+    }
+    if (canUndo) {
+      form.button({ translate: LocalizationKeys.MENU_UNDO_BUTTON });
+      buttons.push({ action: MenuAction.UNDO });
     }
 
     let response;
@@ -171,8 +209,9 @@ export class BuildMenu {
       return { cancelled: true };
     }
 
-    const mode = BUILD_MODE_ORDER[response.selection];
-    return { cancelled: false, mode };
+    const picked = buttons[response.selection];
+    if (!picked) return { cancelled: true };
+    return { cancelled: false, ...picked };
   }
 
   /**
@@ -233,9 +272,10 @@ export class BuildMenu {
    * @param {number} bounds.maxLength
    * @param {number} bounds.step
    * @param {number} bounds.defaultLength
+   * @param {number} [bounds.defaultModeValue] v2.0.0 — pre-fills the height/depth slider (e.g. from the player's last build); falls back to the mode's registry default when missing or out of range.
    * @returns {Promise<ConfigMenuResult>}
    */
-  async promptForConfiguration(player, mode, { minLength, maxLength, step, defaultLength }) {
+  async promptForConfiguration(player, mode, { minLength, maxLength, step, defaultLength, defaultModeValue }) {
     const modeDef = BUILD_MODE_REGISTRY[mode];
     const form = new ModalFormData().title({ translate: LocalizationKeys.MENU_TITLE });
 
@@ -249,7 +289,10 @@ export class BuildMenu {
     if (modeDef?.requiresConfig) {
       form.slider({ translate: modeDef.configLabelKey }, modeDef.min, modeDef.max, {
         valueStep: 1,
-        defaultValue: modeDef.default,
+        defaultValue:
+          Number.isInteger(defaultModeValue) && defaultModeValue >= modeDef.min && defaultModeValue <= modeDef.max
+            ? defaultModeValue
+            : modeDef.default,
       });
       fieldOrder.push("modeValue");
     }

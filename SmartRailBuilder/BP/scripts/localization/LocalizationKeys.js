@@ -147,6 +147,14 @@ export const LocalizationKeys = Object.freeze({
 
   // --- Project Prompt 9: Pipeline Integration & Player Feedback ---
   ACTIONBAR_PREPARING: "ryzenRailBuilder.actionbar.preparing",
+  // v2.0.0 Step 2 — Repeat / Undo
+  MENU_REPEAT_NORMAL: "ryzenRailBuilder.menu.repeatNormal",
+  MENU_REPEAT_BRIDGE: "ryzenRailBuilder.menu.repeatBridge",
+  MENU_REPEAT_UNDERGROUND: "ryzenRailBuilder.menu.repeatUnderground",
+  MENU_UNDO_BUTTON: "ryzenRailBuilder.menu.undoButton",
+  UNDO_COMPLETE: "ryzenRailBuilder.undo.complete",
+  UNDO_SKIPPED: "ryzenRailBuilder.undo.skipped",
+  UNDO_NOTHING: "ryzenRailBuilder.undo.nothing",
   ACTIONBAR_CROUCH_HINT: "ryzenRailBuilder.actionbar.crouchHint", // v2.0.0 — one-time hint after a standing (vanilla) rail placement
   ACTIONBAR_ANALYZING_TERRAIN: "ryzenRailBuilder.actionbar.analyzingTerrain",
   ACTIONBAR_CHECKING_INVENTORY: "ryzenRailBuilder.actionbar.checkingInventory",

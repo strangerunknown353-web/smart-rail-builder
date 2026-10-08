@@ -151,7 +151,7 @@ export class StraightRailStrategy {
       const { position, slopeDirection, classification, futureMetadata } = path[i];
 
       if (classification === TerrainClassification.TUNNEL) {
-        const excavation = this._tunnelExcavator.excavateRow(dimension, futureMetadata.excavationPositions);
+        const excavation = this._tunnelExcavator.excavateRow(dimension, futureMetadata.excavationPositions, { journal: session.journal });
         if (!excavation.success) {
           Logger.warn(`Build stopped for ${player.name} at block ${i}: tunnel excavation failed (${excavation.reason}).`);
           return this._result(session, `TUNNEL_EXCAVATION_${excavation.reason}`);
@@ -201,7 +201,7 @@ export class StraightRailStrategy {
         const permutation = slopeDirection
           ? buildAscendingRailPermutation(railTypeId, slopeDirection)
           : buildStraightRailPermutation(railTypeId, direction);
-        block.setPermutation(permutation);
+        session.journal.write(block, position, permutation, isSurvival ? railTypeId : undefined);
       } catch (error) {
         Logger.error(`Build stopped for ${player.name} at block ${i}: placement failed.`, error);
         return this._result(session, "PLACEMENT_ERROR");

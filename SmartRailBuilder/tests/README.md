@@ -21,6 +21,7 @@ node tests/performanceStability.test.mjs
 node tests/structureProtection.test.mjs
 node tests/directionCoverage.test.mjs
 node tests/interactionGate.test.mjs
+node tests/undoRepeat.test.mjs
 ```
 
 No dependencies, no build step — plain Node (22+), ESM (`.mjs`).

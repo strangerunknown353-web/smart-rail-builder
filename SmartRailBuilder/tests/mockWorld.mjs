@@ -50,10 +50,25 @@ class MockBlock {
     this.isLiquid = spec.isLiquid ?? false;
     this._liquidDepth = spec.liquidDepth ?? 0;
     this._permutationState = spec.permutationState ?? {};
-    this.permutation = {
+    this.permutation = this._snapshotPermutation();
+  }
+
+  /**
+   * v2.0.0 (undo): a permutation snapshot carrying `typeId` + `states`, the
+   * same shape the @minecraft/server mock's BlockPermutation.resolve()
+   * returns — so a permutation read from a block BEFORE a write can be
+   * passed back to setPermutation() later and restore that block, exactly
+   * like a real Block.permutation.
+   */
+  _snapshotPermutation() {
+    const states = { ...this._permutationState };
+    const typeId = this.typeId;
+    return {
+      typeId,
+      states,
       getState: (key) => {
-        if (key === "liquid_depth" && this.isLiquid) return this._liquidDepth;
-        return this._permutationState[key];
+        if (key === "liquid_depth" && (typeId === "minecraft:water" || typeId === "minecraft:lava")) return this._liquidDepth;
+        return states[key];
       },
     };
   }
@@ -74,10 +89,7 @@ class MockBlock {
     this._permutationState = permutation.states ?? {};
     this.isAir = this.typeId === "minecraft:air";
     this.isLiquid = this.typeId === "minecraft:water" || this.typeId === "minecraft:lava";
-    this.permutation.getState = (key) => {
-      if (key === "liquid_depth" && this.isLiquid) return this._liquidDepth;
-      return this._permutationState[key];
-    };
+    this.permutation = this._snapshotPermutation();
   }
 }
 

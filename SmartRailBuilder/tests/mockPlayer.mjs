@@ -27,11 +27,37 @@ class MockContainer {
     this._slots[slot] = item;
   }
 
-  /** TEST-ONLY convenience, not part of the real API: put an item stack in the first empty slot. */
-  addItem(typeId, amount) {
-    const emptySlot = this._slots.findIndex((s) => s === undefined);
-    if (emptySlot === -1) throw new Error("MockContainer: no empty slot (test setup error).");
-    this._slots[emptySlot] = { typeId, amount };
+  /**
+   * Two shapes: `addItem(typeId, amount)` is a TEST-ONLY setup convenience
+   * (throws when full); `addItem(itemStack)` mirrors the real
+   * Container.addItem (v2.0.0, undo refunds) — merges into matching stacks,
+   * then empty slots, and returns the leftover stack or undefined.
+   */
+  addItem(typeIdOrStack, amount) {
+    if (typeof typeIdOrStack === "string") {
+      const emptySlot = this._slots.findIndex((s) => s === undefined);
+      if (emptySlot === -1) throw new Error("MockContainer: no empty slot (test setup error).");
+      this._slots[emptySlot] = { typeId: typeIdOrStack, amount };
+      return undefined;
+    }
+    const { typeId } = typeIdOrStack;
+    let remaining = typeIdOrStack.amount;
+    for (let i = 0; i < this.size && remaining > 0; i++) {
+      const slot = this._slots[i];
+      if (slot && slot.typeId === typeId && slot.amount < 64) {
+        const take = Math.min(64 - slot.amount, remaining);
+        slot.amount += take;
+        remaining -= take;
+      }
+    }
+    for (let i = 0; i < this.size && remaining > 0; i++) {
+      if (this._slots[i] === undefined) {
+        const take = Math.min(64, remaining);
+        this._slots[i] = { typeId, amount: take };
+        remaining -= take;
+      }
+    }
+    return remaining > 0 ? { typeId, amount: remaining } : undefined;
   }
 }
 

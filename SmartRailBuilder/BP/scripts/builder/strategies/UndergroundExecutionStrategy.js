@@ -134,7 +134,10 @@ export class UndergroundExecutionStrategy {
       // Mode's hill-tunnels) still aborts on unexpected water. Lava is
       // still never excavated regardless — see TunnelExcavator.excavateRow()'s
       // own doc.
-      const excavation = this._tunnelExcavator.excavateRow(dimension, step.excavationPositions, { allowLiquid: true });
+      const excavation = this._tunnelExcavator.excavateRow(dimension, step.excavationPositions, {
+        allowLiquid: true,
+        journal: session.journal,
+      });
       if (!excavation.success) {
         Logger.warn(
           `Underground build stopped for ${player.name} at step ${i} ` +
@@ -151,7 +154,7 @@ export class UndergroundExecutionStrategy {
       // overwhelming majority of rows, which never intersected water at all
       // (`step.sealPositions` is empty for those — see terrain/UndergroundPlan.js).
       if (step.sealPositions.length > 0) {
-        this._tunnelExcavator.sealPositions(dimension, step.sealPositions, UNDERGROUND_CONFIG.SEAL_BLOCK_ID);
+        this._tunnelExcavator.sealPositions(dimension, step.sealPositions, UNDERGROUND_CONFIG.SEAL_BLOCK_ID, session.journal);
       }
 
       // Clearance verification, per Project Prompt 17's step 7: confirm the
@@ -201,7 +204,7 @@ export class UndergroundExecutionStrategy {
         const permutation = step.slopeDirection
           ? buildAscendingRailPermutation(railTypeId, step.slopeDirection)
           : buildStraightRailPermutation(railTypeId, direction);
-        read.block.setPermutation(permutation);
+        session.journal.write(read.block, step.position, permutation, isSurvival ? railTypeId : undefined);
       } catch (error) {
         Logger.error(`Underground build stopped for ${player.name} at step ${i}: rail placement failed.`, error);
         return this._result(session, "PLACEMENT_ERROR");
@@ -223,7 +226,7 @@ export class UndergroundExecutionStrategy {
     // reserve it, and a failure to excavate it now is logged but never
     // stops or fails the build — the actual railway is already complete.
     if (plan.landingExcavationPositions.length > 0) {
-      const landing = this._tunnelExcavator.excavateRow(dimension, plan.landingExcavationPositions);
+      const landing = this._tunnelExcavator.excavateRow(dimension, plan.landingExcavationPositions, { journal: session.journal });
       if (!landing.success) {
         Logger.debug(`Landing buffer excavation skipped for ${player.name}: ${landing.reason}.`);
       }
