@@ -80,6 +80,6 @@ A running list, updated after every project step. Full technical detail is in `C
 **Optimizations**
 - **One terrain scan instead of two:** the final safety check reuses the first route scan when no
   game tick has passed since it, because the world can't change mid-tick. If a tick has passed, it
-  re-scans fully as before. On a 64-block Underground build this saves hundreds of block reads.
+  re-scans fully as before. This skips reading every block along the route a second time.
 - **Game mode read once per build** instead of once per block: 4 reads for a 40-rail build, down
   from 40+. Safe because changing game mode cancels a running build.
