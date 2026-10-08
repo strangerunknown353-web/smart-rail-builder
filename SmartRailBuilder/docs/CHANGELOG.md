@@ -1414,3 +1414,23 @@ consecutive session on a base that has still never been confirmed in-game — se
   world and inventory, skip-and-no-double-refund, repeat flow, settings validation/persistence, real menu
   button mapping, journal failure safety) and `tests/realGraphV2.mjs` helper. Mocks: restorable block
   permutation snapshots, `ItemStack`, real-shaped `Container.addItem(itemStack)`.
+
+### v2 Step 3 — Powered boosters, tunnel lights, inventory optimizations — 2026-10-08
+- `config/ExtrasConfig.js` (spacing choices, booster/power/light block ids, `pickSpacing`),
+  `core/ExtrasPlan.js` (pure `planExtras()`: booster indices + power positions under the rail; Underground
+  light positions in the left wall at rail y+1, offset half a spacing), `builder/ExtrasBuilder.js`
+  (`createExtrasState`, `prepareRail`, `bridgeSurfaceBlockFor`, `placeLight`; never fails a build,
+  journals every write for undo).
+- `BuildRequest` gains `boosterSpacing`/`lightSpacing` (unknown -> 0; lights Underground-only);
+  `BuildPlan.extras` and its positions join `modificationBoundary`.
+- Strategies: booster indices place the redstone block then a powered rail (Normal/Underground/Bridge
+  deck, the bridge loop is now indexed); Bridge `_placeMaterial` puts the redstone block in as the surface
+  block under booster rails; Underground places a light after each planned rail.
+- `PlacementStage` attaches `session.extras` and reports boosters/lights placed (and why any were skipped).
+- `BuildMenu`: booster dropdown (all modes) and light dropdown (Underground) after the sliders; summary
+  body gains an extras line (rawtext) only when relevant. Repeat and remembered settings carry both
+  spacings (`PlayerBuildSettings` fills defaults for older saves).
+- Optimizations: `InventoryManager` slot hints for `hasAtLeast`/`deductRailItems` (163 vs 4,608 slot reads
+  over 64 placements), cached `_isPlaceableBlock`, cached extras permutations, `LOGGING.MIN_LEVEL` INFO.
+- Tests: `tests/extras.test.mjs` (131 assertions). Mocks: `ModalFormData.dropdown` with all-field
+  `formValues` indexing. Step 2 expectations updated for the new saved fields.

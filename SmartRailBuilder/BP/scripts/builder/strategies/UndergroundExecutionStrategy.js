@@ -5,6 +5,7 @@ import { UNDERGROUND_CONFIG } from "../../config/UndergroundConfig.js";
 import { readBlock } from "../../utils/BlockReader.js";
 import { Logger } from "../../utils/Logger.js";
 import { LocalizationKeys } from "../../localization/LocalizationKeys.js";
+import { ExtrasBuilder } from "../ExtrasBuilder.js";
 
 /**
  * UndergroundExecutionStrategy.js
@@ -99,6 +100,8 @@ export class UndergroundExecutionStrategy {
     this._progressReporter = progressReporter;
     /** @private */
     this._messageService = messageService;
+    /** @private v2.0.0 Step 3 — boosters + tunnel lights (no-op unless session.extras asks for them) */
+    this._extras = new ExtrasBuilder(inventoryManager);
   }
 
   /**
@@ -196,15 +199,17 @@ export class UndergroundExecutionStrategy {
         Logger.warn(`Underground build stopped for ${player.name} at step ${i}: ran out of ${railTypeId}.`);
         return this._result(session, "OUT_OF_RESOURCES");
       }
+      // v2.0.0: a booster index places its redstone block now and becomes a powered rail.
+      const placeTypeId = this._extras.prepareRail(session, i, railTypeId);
 
       try {
         // Exactly the same call shape StraightRailStrategy uses for slopes —
         // the ramp reuses the existing Phase 11 rail geometry rather than
         // introducing any new one. See UndergroundPlan.js's rampSlopeDirection.
         const permutation = step.slopeDirection
-          ? buildAscendingRailPermutation(railTypeId, step.slopeDirection)
-          : buildStraightRailPermutation(railTypeId, direction);
-        session.journal.write(read.block, step.position, permutation, isSurvival ? railTypeId : undefined);
+          ? buildAscendingRailPermutation(placeTypeId, step.slopeDirection)
+          : buildStraightRailPermutation(placeTypeId, direction);
+        session.journal.write(read.block, step.position, permutation, isSurvival ? placeTypeId : undefined);
       } catch (error) {
         Logger.error(`Underground build stopped for ${player.name} at step ${i}: rail placement failed.`, error);
         return this._result(session, "PLACEMENT_ERROR");
@@ -212,8 +217,10 @@ export class UndergroundExecutionStrategy {
 
       session.incrementBlocksPlaced();
       if (isSurvival) {
-        this._inventoryManager.deductRailItems(player, railTypeId, 1);
+        this._inventoryManager.deductRailItems(player, placeTypeId, 1);
       }
+      // v2.0.0: tunnel light in the wall beside this rail, if one is planned here.
+      this._extras.placeLight(session, i);
       this._progressReporter.reportIfDue(session);
       yield;
     }

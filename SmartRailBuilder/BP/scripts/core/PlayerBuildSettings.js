@@ -17,10 +17,14 @@
  *   config/BuildModes.js and LENGTH_PRESETS before use. Anything out of
  *   range or from an older/unknown format is ignored (treated as "no last
  *   build"), never clamped into something the player didn't choose.
+ *   (Exception, v2.0.0 Step 3: the optional booster/light spacings fall
+ *   back to their defaults when missing or unknown — an older save without
+ *   them is still a valid "last build".)
  */
 
 import { BUILD_MODE_REGISTRY, BuildingMode } from "../config/BuildModes.js";
 import { LENGTH_PRESETS } from "../config/RailConfig.js";
+import { EXTRAS_CONFIG, pickSpacing } from "../config/ExtrasConfig.js";
 import { Logger } from "../utils/Logger.js";
 
 export const LAST_BUILD_PROPERTY = "smart_rail_builder:last_build";
@@ -31,6 +35,8 @@ export const LAST_BUILD_PROPERTY = "smart_rail_builder:last_build";
  * @property {number} length
  * @property {number} [modeValue] Bridge height or underground depth.
  * @property {string} [materialId] Bridge material.
+ * @property {number} [boosterSpacing] v2.0.0 Step 3 — 0 = off.
+ * @property {number} [lightSpacing] v2.0.0 Step 3 — Underground only, 0 = off.
  */
 
 /**
@@ -54,6 +60,13 @@ export function sanitizeSettings(value) {
   if (modeDef.id === BuildingMode.BRIDGE) {
     if (typeof value.materialId !== "string" || value.materialId.length === 0) return null;
     settings.materialId = value.materialId;
+  }
+  // Extras (Step 3) are optional: v2 Step 2 saves don't have them, and an
+  // unknown value just falls back to the default instead of discarding
+  // the whole saved build.
+  settings.boosterSpacing = pickSpacing(value.boosterSpacing, EXTRAS_CONFIG.BOOSTER_SPACING_OPTIONS, EXTRAS_CONFIG.DEFAULT_BOOSTER_SPACING);
+  if (modeDef.id === BuildingMode.UNDERGROUND) {
+    settings.lightSpacing = pickSpacing(value.lightSpacing, EXTRAS_CONFIG.LIGHT_SPACING_OPTIONS, EXTRAS_CONFIG.DEFAULT_LIGHT_SPACING);
   }
   return settings;
 }

@@ -1,5 +1,6 @@
 import { ActionFormData, ModalFormData, MessageFormData } from "@minecraft/server-ui";
 import { BUILD_MODE_REGISTRY, BUILD_MODE_ORDER, BuildingMode } from "../config/BuildModes.js";
+import { EXTRAS_CONFIG, pickSpacing } from "../config/ExtrasConfig.js";
 import { RAIL_TYPES } from "../config/RailConfig.js";
 import { LocalizationKeys } from "../localization/LocalizationKeys.js";
 import { DirectionUtils } from "../utils/DirectionUtils.js";
@@ -146,6 +147,33 @@ const REPEAT_LABEL_KEYS = Object.freeze({
 });
 
 /**
+ * v2.0.0 Step 3: the summary body, plus a "Boosters · Tunnel lights" line
+ * when either is relevant (boosters on, or an Underground build). Without
+ * extras it's exactly the v1 `{translate, with}` body.
+ */
+function summaryBody(bodyKey, substitutions, mode, boosterSpacing, lightSpacing) {
+  const main = { translate: bodyKey, with: substitutions.map(String) };
+  if (boosterSpacing <= 0 && mode !== BuildingMode.UNDERGROUND) return main;
+  return {
+    rawtext: [
+      main,
+      { text: "\n\n" },
+      {
+        translate: LocalizationKeys.MENU_SUMMARY_EXTRAS,
+        with: { rawtext: [spacingLabel(boosterSpacing), spacingLabel(mode === BuildingMode.UNDERGROUND ? lightSpacing : 0)] },
+      },
+    ],
+  };
+}
+
+/** v2.0.0 Step 3: dropdown label for a spacing value (0 = "Off"). */
+function spacingLabel(spacing) {
+  return spacing > 0
+    ? { translate: LocalizationKeys.MENU_SPACING_EVERY, with: [String(spacing)] }
+    : { translate: LocalizationKeys.MENU_SPACING_OFF };
+}
+
+/**
  * @typedef {Object} ModeMenuResult
  * @property {boolean} cancelled
  * @property {string} [action] One of MenuAction's values. Present only when cancelled is false.
@@ -275,7 +303,11 @@ export class BuildMenu {
    * @param {number} [bounds.defaultModeValue] v2.0.0 — pre-fills the height/depth slider (e.g. from the player's last build); falls back to the mode's registry default when missing or out of range.
    * @returns {Promise<ConfigMenuResult>}
    */
-  async promptForConfiguration(player, mode, { minLength, maxLength, step, defaultLength, defaultModeValue }) {
+  async promptForConfiguration(
+    player,
+    mode,
+    { minLength, maxLength, step, defaultLength, defaultModeValue, defaultBoosterSpacing, defaultLightSpacing }
+  ) {
     const modeDef = BUILD_MODE_REGISTRY[mode];
     const form = new ModalFormData().title({ translate: LocalizationKeys.MENU_TITLE });
 
@@ -303,6 +335,24 @@ export class BuildMenu {
     });
     fieldOrder.push("length");
 
+    // v2.0.0 Step 3: extras dropdowns, always AFTER the sliders so the
+    // slider indices above are unchanged from v1.
+    const boosterOptions = EXTRAS_CONFIG.BOOSTER_SPACING_OPTIONS;
+    const boosterDefault = pickSpacing(defaultBoosterSpacing, boosterOptions, EXTRAS_CONFIG.DEFAULT_BOOSTER_SPACING);
+    form.dropdown({ translate: LocalizationKeys.MENU_BOOSTER_LABEL }, boosterOptions.map(spacingLabel), {
+      defaultValueIndex: boosterOptions.indexOf(boosterDefault),
+    });
+    fieldOrder.push("boosterSpacing");
+
+    const lightOptions = EXTRAS_CONFIG.LIGHT_SPACING_OPTIONS;
+    const lightDefault = pickSpacing(defaultLightSpacing, lightOptions, EXTRAS_CONFIG.DEFAULT_LIGHT_SPACING);
+    if (mode === BuildingMode.UNDERGROUND) {
+      form.dropdown({ translate: LocalizationKeys.MENU_LIGHT_LABEL }, lightOptions.map(spacingLabel), {
+        defaultValueIndex: lightOptions.indexOf(lightDefault),
+      });
+      fieldOrder.push("lightSpacing");
+    }
+
     form.submitButton({ translate: LocalizationKeys.MENU_NEXT_BUTTON });
 
     let response;
@@ -321,9 +371,14 @@ export class BuildMenu {
       return { cancelled: true };
     }
 
-    const result = { cancelled: false };
+    const result = { cancelled: false, boosterSpacing: boosterDefault, lightSpacing: 0 };
+    if (mode === BuildingMode.UNDERGROUND) result.lightSpacing = lightDefault;
     fieldOrder.forEach((field, index) => {
-      result[field] = response.formValues[index];
+      const value = response.formValues?.[index];
+      if (value === undefined) return;
+      if (field === "boosterSpacing") result.boosterSpacing = boosterOptions[value] ?? boosterDefault;
+      else if (field === "lightSpacing") result.lightSpacing = lightOptions[value] ?? lightDefault;
+      else result[field] = value;
     });
     return result;
   }
@@ -344,7 +399,7 @@ export class BuildMenu {
    *   is only meaningful when `cancelled` is false — MessageFormData always
    *   reports exactly one of its two buttons as pressed, never both.
    */
-  async promptForSummary(player, { railTypeId, mode, modeValue, materialId, length, direction }) {
+  async promptForSummary(player, { railTypeId, mode, modeValue, materialId, length, direction, boosterSpacing = 0, lightSpacing = 0 }) {
     const modeDef = BUILD_MODE_REGISTRY[mode];
     const railDisplayName = RAIL_TYPES[railTypeId]?.displayName ?? railTypeId;
     const modeDisplayName = modeDef?.displayName ?? mode;
@@ -366,7 +421,7 @@ export class BuildMenu {
 
     const form = new MessageFormData()
       .title({ translate: LocalizationKeys.MENU_SUMMARY_TITLE })
-      .body({ translate: bodyKey, with: substitutions.map(String) })
+      .body(summaryBody(bodyKey, substitutions, mode, boosterSpacing, lightSpacing))
       .button1({ translate: LocalizationKeys.MENU_SUMMARY_BUILD_BUTTON })
       .button2({ translate: LocalizationKeys.MENU_SUMMARY_CANCEL_BUTTON });
 

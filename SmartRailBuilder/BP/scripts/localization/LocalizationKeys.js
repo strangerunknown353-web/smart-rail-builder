@@ -155,6 +155,16 @@ export const LocalizationKeys = Object.freeze({
   UNDO_COMPLETE: "ryzenRailBuilder.undo.complete",
   UNDO_SKIPPED: "ryzenRailBuilder.undo.skipped",
   UNDO_NOTHING: "ryzenRailBuilder.undo.nothing",
+  // v2.0.0 Step 3 — boosters + tunnel lights
+  MENU_BOOSTER_LABEL: "ryzenRailBuilder.menu.boosterLabel",
+  MENU_LIGHT_LABEL: "ryzenRailBuilder.menu.lightLabel",
+  MENU_SPACING_OFF: "ryzenRailBuilder.menu.spacingOff",
+  MENU_SPACING_EVERY: "ryzenRailBuilder.menu.spacingEvery",
+  MENU_SUMMARY_EXTRAS: "ryzenRailBuilder.menu.summaryExtras",
+  EXTRAS_BOOSTERS_PLACED: "ryzenRailBuilder.extras.boostersPlaced",
+  EXTRAS_BOOSTERS_SHORT: "ryzenRailBuilder.extras.boostersShort",
+  EXTRAS_LIGHTS_PLACED: "ryzenRailBuilder.extras.lightsPlaced",
+  EXTRAS_NO_LIGHT_BLOCKS: "ryzenRailBuilder.extras.noLightBlocks",
   ACTIONBAR_CROUCH_HINT: "ryzenRailBuilder.actionbar.crouchHint", // v2.0.0 — one-time hint after a standing (vanilla) rail placement
   ACTIONBAR_ANALYZING_TERRAIN: "ryzenRailBuilder.actionbar.analyzingTerrain",
   ACTIONBAR_CHECKING_INVENTORY: "ryzenRailBuilder.actionbar.checkingInventory",

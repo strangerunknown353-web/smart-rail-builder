@@ -89,8 +89,13 @@ export const ADDON = Object.freeze({
  */
 export const LOGGING = Object.freeze({
   ENABLED: true,
-  /** One of LogLevel values in utils/Logger.js. Messages below this level are dropped. */
-  MIN_LEVEL: "DEBUG",
+  /**
+   * One of LogLevel values in utils/Logger.js. Messages below this level are dropped.
+   * v2.0.0 optimization: release builds log at INFO (v1.0.0 shipped at DEBUG,
+   * writing ~15 Content Log lines per build plus one per preserved rail).
+   * Set back to "DEBUG" when diagnosing a problem.
+   */
+  MIN_LEVEL: "INFO",
 });
 
 /**

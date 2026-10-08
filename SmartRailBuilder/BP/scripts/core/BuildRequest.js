@@ -80,6 +80,7 @@
  */
 
 import { DEFAULT_BUILDING_MODE } from "../config/BuildModes.js";
+import { EXTRAS_CONFIG, pickSpacing } from "../config/ExtrasConfig.js";
 
 export class BuildRequest {
   /**
@@ -120,6 +121,8 @@ export class BuildRequest {
     bridgeHeight,
     bridgeMaterialId,
     undergroundDepth,
+    boosterSpacing,
+    lightSpacing,
   }) {
     /** @readonly */
     this.player = player;
@@ -147,5 +150,10 @@ export class BuildRequest {
     this.bridgeMaterialId = this.buildingMode === "BRIDGE" ? bridgeMaterialId ?? null : null;
     /** @readonly Only non-null when buildingMode === "UNDERGROUND". */
     this.undergroundDepth = this.buildingMode === "UNDERGROUND" ? undergroundDepth ?? null : null;
+    // v2.0.0 Step 3 — extras (config/ExtrasConfig.js). Anything that isn't
+    // one of the offered choices becomes "off"; lights are Underground-only.
+    this.boosterSpacing = pickSpacing(boosterSpacing, EXTRAS_CONFIG.BOOSTER_SPACING_OPTIONS, 0);
+    this.lightSpacing =
+      this.buildingMode === "UNDERGROUND" ? pickSpacing(lightSpacing, EXTRAS_CONFIG.LIGHT_SPACING_OPTIONS, 0) : 0;
   }
 }

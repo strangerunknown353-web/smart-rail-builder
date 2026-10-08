@@ -6,6 +6,7 @@ import { BRIDGE_CONFIG } from "../../config/BridgeConfig.js";
 import { readBlock } from "../../utils/BlockReader.js";
 import { Logger } from "../../utils/Logger.js";
 import { LocalizationKeys } from "../../localization/LocalizationKeys.js";
+import { ExtrasBuilder } from "../ExtrasBuilder.js";
 
 /**
  * BridgeExecutionStrategy.js
@@ -119,6 +120,8 @@ export class BridgeExecutionStrategy {
     this._progressReporter = progressReporter;
     /** @private */
     this._messageService = messageService;
+    /** @private v2.0.0 Step 3 — boosters (no-op unless session.extras asks for them) */
+    this._extras = new ExtrasBuilder(inventoryManager);
   }
 
   /**
@@ -147,7 +150,8 @@ export class BridgeExecutionStrategy {
     }
 
     this._messageService.sendChat(player, LocalizationKeys.BRIDGE_PLACING_RAILS);
-    for (const step of plan.deckPositions) {
+    for (let deckIndex = 0; deckIndex < plan.deckPositions.length; deckIndex++) {
+      const step = plan.deckPositions[deckIndex];
       if (session.isCancelled()) {
         return this._result(session, session.cancelReason);
       }
@@ -191,15 +195,18 @@ export class BridgeExecutionStrategy {
         Logger.warn(`Bridge build stopped for ${player.name}: ran out of ${session.railTypeId}.`);
         return this._result(session, "OUT_OF_RESOURCES");
       }
+      // v2.0.0: a booster index becomes a powered rail (its redstone block is
+      // usually already in place as the deck surface — see _placeMaterial).
+      const placeTypeId = this._extras.prepareRail(session, deckIndex, session.railTypeId);
 
       try {
         // Slope-aware as of this revision — mirrors exactly how
         // UndergroundExecutionStrategy/StraightRailStrategy already pick
         // between the two permutation builders.
         const permutation = step.slopeDirection
-          ? buildAscendingRailPermutation(session.railTypeId, step.slopeDirection)
-          : buildStraightRailPermutation(session.railTypeId, session.direction);
-        session.journal.write(block, step.position, permutation, isSurvival ? session.railTypeId : undefined);
+          ? buildAscendingRailPermutation(placeTypeId, step.slopeDirection)
+          : buildStraightRailPermutation(placeTypeId, session.direction);
+        session.journal.write(block, step.position, permutation, isSurvival ? placeTypeId : undefined);
       } catch (error) {
         Logger.error(`Bridge build stopped for ${player.name}: rail placement failed.`, error);
         return this._result(session, "PLACEMENT_ERROR");
@@ -207,7 +214,7 @@ export class BridgeExecutionStrategy {
 
       session.incrementBlocksPlaced();
       if (isSurvival) {
-        this._inventoryManager.deductRailItems(player, session.railTypeId, 1);
+        this._inventoryManager.deductRailItems(player, placeTypeId, 1);
       }
       this._progressReporter.reportIfDue(session);
       yield;
@@ -227,13 +234,15 @@ export class BridgeExecutionStrategy {
    *
    * @param {import("../../core/BuildSession.js").BuildSession} session
    * @param {{x: number, y: number, z: number}} position
-   * @param {string} materialId The player's chosen bridge material — see REVISION HISTORY above.
+   * @param {string} chosenMaterialId The player's chosen bridge material — see REVISION HISTORY above. (v2.0.0: swapped for the redstone block under a booster rail.)
    * @param {string} phaseLabel "BRIDGE_SUPPORT" or "BRIDGE_SURFACE" — prefixes the stop reason so a failure's phase is visible in logs/Content Log without a separate field.
    * @returns {Generator<void, string|null, void>} The stop reason if placement should halt, or null to continue.
    * @private
    */
-  *_placeMaterial(session, position, materialId, phaseLabel) {
+  *_placeMaterial(session, position, chosenMaterialId, phaseLabel) {
     const { player, dimension } = session;
+    // v2.0.0: under a booster rail the "surface" block is the redstone block.
+    const materialId = this._extras.bridgeSurfaceBlockFor(session, position, chosenMaterialId);
 
     if (session.isCancelled()) {
       return session.cancelReason;

@@ -127,3 +127,14 @@ ryzenRailBuilder.menu.undoButton=§cUndo last build
 ryzenRailBuilder.undo.complete=§7[Smart Rail Builder]§r §aUndo complete! Restored %1$s blocks and returned %2$s items.
 ryzenRailBuilder.undo.skipped=§e%1$s block(s) changed since the build were left as they are.
 ryzenRailBuilder.undo.nothing=§eThere is no build to undo.
+
+## v2.0.0 — Boosters (powered rails) and tunnel lights
+ryzenRailBuilder.menu.boosterLabel=Powered boosters (powered rail + redstone block)
+ryzenRailBuilder.menu.lightLabel=Tunnel lights (glowstone, sea lantern, shroomlight or froglight)
+ryzenRailBuilder.menu.spacingOff=Off
+ryzenRailBuilder.menu.spacingEvery=Every %1$s blocks
+ryzenRailBuilder.menu.summaryExtras=§7Boosters: §f%1$s§7 · Tunnel lights: §f%2$s
+ryzenRailBuilder.extras.boostersPlaced=§7Boosters placed: §f%1$s§7 of §f%2$s
+ryzenRailBuilder.extras.boostersShort=§eSome boosters were skipped — carry powered rails and redstone blocks to place them all.
+ryzenRailBuilder.extras.lightsPlaced=§7Tunnel lights placed: §f%1$s§7 of §f%2$s
+ryzenRailBuilder.extras.noLightBlocks=§eNo light blocks in your inventory — the tunnel was built without lights. Carry glowstone, sea lanterns, shroomlights or froglights.

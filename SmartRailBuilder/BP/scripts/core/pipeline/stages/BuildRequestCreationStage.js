@@ -164,7 +164,13 @@ export class BuildRequestCreationStage {
     // Skipped on Repeat; otherwise pre-filled from the last build (v2.0.0).
     let configResult;
     if (repeating) {
-      configResult = { cancelled: false, length: lastSettings.length, modeValue: lastSettings.modeValue };
+      configResult = {
+        cancelled: false,
+        length: lastSettings.length,
+        modeValue: lastSettings.modeValue,
+        boosterSpacing: lastSettings.boosterSpacing,
+        lightSpacing: lastSettings.lightSpacing,
+      };
     } else {
       configResult = await this._buildMenu.promptForConfiguration(context.player, mode, {
         minLength: LENGTH_PRESETS.MIN,
@@ -172,6 +178,8 @@ export class BuildRequestCreationStage {
         step: LENGTH_PRESETS.STEP,
         defaultLength: lastSettings?.length ?? LENGTH_PRESETS.DEFAULT,
         defaultModeValue: lastSettings?.mode === mode ? lastSettings.modeValue : undefined,
+        defaultBoosterSpacing: lastSettings?.boosterSpacing,
+        defaultLightSpacing: lastSettings?.lightSpacing,
       });
       if (configResult.cancelled) {
         return PipelineResult.cancelled(this.name, "CONFIG_MENU_CLOSED");
@@ -191,6 +199,8 @@ export class BuildRequestCreationStage {
       materialId,
       length: configResult.length,
       direction: buildVector.direction,
+      boosterSpacing: configResult.boosterSpacing ?? 0,
+      lightSpacing: configResult.lightSpacing ?? 0,
     });
     if (summaryResult.cancelled || !summaryResult.confirmed) {
       return PipelineResult.cancelled(this.name, summaryResult.cancelled ? "SUMMARY_MENU_CLOSED" : "SUMMARY_CANCELLED");
@@ -203,6 +213,8 @@ export class BuildRequestCreationStage {
       length: configResult.length,
       modeValue: configResult.modeValue,
       materialId,
+      boosterSpacing: configResult.boosterSpacing,
+      lightSpacing: configResult.lightSpacing,
     });
 
     // Re-computed fresh here, right before actually constructing the
@@ -222,6 +234,8 @@ export class BuildRequestCreationStage {
       bridgeHeight: modeDef?.configField === "bridgeHeight" ? configResult.modeValue : undefined,
       bridgeMaterialId: materialId,
       undergroundDepth: modeDef?.configField === "undergroundDepth" ? configResult.modeValue : undefined,
+      boosterSpacing: configResult.boosterSpacing,
+      lightSpacing: configResult.lightSpacing,
     });
 
     return PipelineResult.success();

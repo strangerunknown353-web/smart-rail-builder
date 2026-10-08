@@ -3,6 +3,7 @@ import { TerrainClassification } from "../../terrain/TerrainClassification.js";
 import { buildStraightRailPermutation, buildAscendingRailPermutation } from "../RailPermutationBuilder.js";
 import { RAIL_ITEM_ID_SET } from "../../config/RailConfig.js";
 import { Logger } from "../../utils/Logger.js";
+import { ExtrasBuilder } from "../ExtrasBuilder.js";
 
 /**
  * StraightRailStrategy.js
@@ -132,6 +133,8 @@ export class StraightRailStrategy {
     this._progressReporter = progressReporter;
     /** @private */
     this._tunnelExcavator = tunnelExcavator;
+    /** @private v2.0.0 Step 3 — boosters (no-op unless session.extras asks for them) */
+    this._extras = new ExtrasBuilder(inventoryManager);
   }
 
   /**
@@ -196,12 +199,14 @@ export class StraightRailStrategy {
         Logger.warn(`Build stopped for ${player.name} at block ${i}: ran out of ${railTypeId}.`);
         return this._result(session, "OUT_OF_RESOURCES");
       }
+      // v2.0.0: a booster index places its redstone block now and becomes a powered rail.
+      const placeTypeId = this._extras.prepareRail(session, i, railTypeId);
 
       try {
         const permutation = slopeDirection
-          ? buildAscendingRailPermutation(railTypeId, slopeDirection)
-          : buildStraightRailPermutation(railTypeId, direction);
-        session.journal.write(block, position, permutation, isSurvival ? railTypeId : undefined);
+          ? buildAscendingRailPermutation(placeTypeId, slopeDirection)
+          : buildStraightRailPermutation(placeTypeId, direction);
+        session.journal.write(block, position, permutation, isSurvival ? placeTypeId : undefined);
       } catch (error) {
         Logger.error(`Build stopped for ${player.name} at block ${i}: placement failed.`, error);
         return this._result(session, "PLACEMENT_ERROR");
@@ -210,7 +215,7 @@ export class StraightRailStrategy {
       session.incrementBlocksPlaced();
 
       if (isSurvival) {
-        this._inventoryManager.deductRailItems(player, railTypeId, 1);
+        this._inventoryManager.deductRailItems(player, placeTypeId, 1);
       }
 
       this._progressReporter.reportIfDue(session);

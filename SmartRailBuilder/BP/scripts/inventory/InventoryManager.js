@@ -74,6 +74,26 @@ import { Logger } from "../utils/Logger.js";
  * @property {number} totalAvailable Summed across every matching slot — informational only; the player never enters a quantity, see ui/BuildMenu.js's `promptForBridgeMaterial()`.
  */
 
+// v2.0.0 optimizations. Every Container.getItem() call crosses into the
+// engine and copies an ItemStack, and a build used to scan the whole
+// inventory (up to 36 slots) twice per placed block — once to check, once
+// to deduct. Two module-level caches (InventoryManager instances are
+// stateless and several exist, so the caches are shared):
+//   - _slotHints: per player + item, the slot that last held that item.
+//     hasAtLeast()/deductRailItems() look there first; it's only ever a
+//     starting point (re-checked every time), so a stale hint just falls
+//     back to the normal full scan.
+//   - _placeableCache: whether BlockPermutation.resolve() accepts a typeId.
+//     The answer never changes during a world session, and resolve() THROWS
+//     for non-blocks, so caching avoids repeated exceptions every time the
+//     bridge material screen opens.
+const _slotHints = new Map();
+const _placeableCache = new Map();
+
+function hintKey(player, typeId) {
+  return `${player.id}|${typeId}`;
+}
+
 export class InventoryManager {
   /**
    * @param {import("@minecraft/server").Player} player
@@ -110,10 +130,18 @@ export class InventoryManager {
     const container = inventory?.container;
     if (!container) return false;
 
+    const key = hintKey(player, typeId);
+    const hint = _slotHints.get(key);
+    if (hint !== undefined && hint < container.size) {
+      const hinted = container.getItem(hint);
+      if (hinted && hinted.typeId === typeId && hinted.amount >= minimumAmount) return true;
+    }
+
     let total = 0;
     for (let slot = 0; slot < container.size; slot++) {
       const item = container.getItem(slot);
       if (item && item.typeId === typeId) {
+        _slotHints.set(key, slot);
         total += item.amount;
         if (total >= minimumAmount) return true;
       }
@@ -190,12 +218,17 @@ export class InventoryManager {
    * @private
    */
   _isPlaceableBlock(typeId) {
+    const cached = _placeableCache.get(typeId);
+    if (cached !== undefined) return cached;
+    let placeable;
     try {
       BlockPermutation.resolve(typeId);
-      return true;
+      placeable = true;
     } catch (error) {
-      return false;
+      placeable = false;
     }
+    _placeableCache.set(typeId, placeable);
+    return placeable;
   }
 
   /**
@@ -255,18 +288,27 @@ export class InventoryManager {
     }
 
     let remaining = amount;
-    for (let slot = 0; slot < container.size && remaining > 0; slot++) {
+    const key = hintKey(player, railTypeId);
+    const hint = _slotHints.get(key);
+    const takeFrom = (slot) => {
       const item = container.getItem(slot);
-      if (!item || item.typeId !== railTypeId) continue;
+      if (!item || item.typeId !== railTypeId) return;
 
       const takeFromThisSlot = Math.min(item.amount, remaining);
       if (takeFromThisSlot >= item.amount) {
         container.setItem(slot); // fully consumes this stack - clears the slot
+        if (_slotHints.get(key) === slot) _slotHints.delete(key);
       } else {
         item.amount -= takeFromThisSlot;
         container.setItem(slot, item); // write the modified copy back
+        _slotHints.set(key, slot);
       }
       remaining -= takeFromThisSlot;
+    };
+    // v2.0.0: the hinted slot first (usually the only one touched), then the rest in order.
+    if (hint !== undefined && hint < container.size) takeFrom(hint);
+    for (let slot = 0; slot < container.size && remaining > 0; slot++) {
+      if (slot !== hint) takeFrom(slot);
     }
 
     if (remaining > 0) {

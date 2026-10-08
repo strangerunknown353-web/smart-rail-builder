@@ -281,7 +281,7 @@ async function run(graph, player) {
   assertEqual(menu.calls.mode[0].lastSettings, null, "repeat: first menu has nothing to repeat");
   assertEqual(
     graph.buildSettings.get(player),
-    { mode: "BRIDGE", length: 6, modeValue: 4, materialId: "minecraft:stone" },
+    { mode: "BRIDGE", length: 6, modeValue: 4, materialId: "minecraft:stone", boosterSpacing: 0 },
     "repeat: confirmed settings remembered"
   );
 
@@ -336,7 +336,7 @@ async function run(graph, player) {
 // 7. PlayerBuildSettings: validation + dynamic-property persistence.
 // ---------------------------------------------------------------------------
 {
-  assertEqual(sanitizeSettings({ mode: "NORMAL", length: 32 }), { mode: "NORMAL", length: 32 }, "sanitize: valid normal");
+  assertEqual(sanitizeSettings({ mode: "NORMAL", length: 32 }), { mode: "NORMAL", length: 32, boosterSpacing: 0 }, "sanitize: valid normal (pre-Step-3 save gets default extras)");
   assertEqual(sanitizeSettings({ mode: "NORMAL", length: 999 }), null, "sanitize: length over max rejected");
   assertEqual(sanitizeSettings({ mode: "NORMAL", length: 2.5 }), null, "sanitize: non-integer length rejected");
   assertEqual(sanitizeSettings({ mode: "FLYING", length: 5 }), null, "sanitize: unknown mode rejected");
@@ -353,7 +353,7 @@ async function run(graph, player) {
   assertTrue(typeof store.get(LAST_BUILD_PROPERTY) === "string", "persist: written to the player's dynamic property");
   assertEqual(
     new PlayerBuildSettings().get(player),
-    { mode: "UNDERGROUND", length: 12, modeValue: 7 },
+    { mode: "UNDERGROUND", length: 12, modeValue: 7, boosterSpacing: 0, lightSpacing: 8 },
     "persist: a fresh store (world reload) reads it back"
   );
 
@@ -369,7 +369,7 @@ async function run(graph, player) {
   };
   const s = new PlayerBuildSettings();
   s.save(throwing, { mode: "NORMAL", length: 3 });
-  assertEqual(s.get(throwing), { mode: "NORMAL", length: 3 }, "persist: falls back to memory when dynamic properties fail");
+  assertEqual(s.get(throwing), { mode: "NORMAL", length: 3, boosterSpacing: 0 }, "persist: falls back to memory when dynamic properties fail");
 }
 
 // ---------------------------------------------------------------------------

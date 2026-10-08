@@ -1,6 +1,7 @@
 import { BuildingMode } from "../config/BuildModes.js";
 import { TerrainClassification } from "../terrain/TerrainClassification.js";
 import { positionKey } from "../utils/PositionKey.js";
+import { NO_EXTRAS, planExtras } from "./ExtrasPlan.js";
 
 /**
  * BuildPlan.js
@@ -65,6 +66,17 @@ import { positionKey } from "../utils/PositionKey.js";
  *   - utils/PositionKey.js
  */
 
+/** v2.0.0 Step 3: extras for this request's rail positions (empty when none were asked for). */
+function extrasFor(request, railPositions) {
+  return planExtras({
+    buildingMode: request.buildingMode,
+    direction: request.buildVector.direction,
+    railPositions,
+    boosterSpacing: request.boosterSpacing,
+    lightSpacing: request.lightSpacing,
+  });
+}
+
 export class BuildPlan {
   /**
    * @param {Object} params
@@ -106,6 +118,7 @@ export class BuildPlan {
     requiredMaterialId,
     requiredMaterialCount,
     validationResults,
+    extras,
   }) {
     /** @readonly */
     this.railTypeId = railTypeId;
@@ -143,6 +156,8 @@ export class BuildPlan {
     this.requiredMaterialCount = requiredMaterialCount ?? null;
     /** @readonly */
     this.validationResults = validationResults;
+    /** v2.0.0 Step 3 — boosters + tunnel lights, see core/ExtrasPlan.js. */
+    this.extras = extras ?? NO_EXTRAS;
 
     /**
      * @readonly
@@ -152,6 +167,8 @@ export class BuildPlan {
       ...railPositions.map(positionKey),
       ...(bridgeSupportPositions ?? []).map(positionKey),
       ...(tunnelPositions ?? []).map(positionKey),
+      ...this.extras.boosters.map((b) => positionKey(b.powerPosition)),
+      ...this.extras.lights.map((l) => positionKey(l.position)),
     ]);
   }
 
@@ -200,6 +217,7 @@ export class BuildPlan {
         requiredMaterialId: bridgeMaterialId,
         requiredMaterialCount: plan.requiredSupportBlockCount,
         validationResults: ["TERRAIN_VALIDATED", "INVENTORY_VALIDATED", "MATERIAL_VALIDATED"],
+        extras: extrasFor(request, railPositions),
       });
     }
 
@@ -230,6 +248,7 @@ export class BuildPlan {
         requiredMaterialId: null,
         requiredMaterialCount: null,
         validationResults: ["TERRAIN_VALIDATED", "INVENTORY_VALIDATED"],
+        extras: extrasFor(request, railPositions),
       });
     }
 
@@ -263,6 +282,7 @@ export class BuildPlan {
       requiredMaterialId: null,
       requiredMaterialCount: null,
       validationResults: ["TERRAIN_VALIDATED", "INVENTORY_VALIDATED"],
+      extras: extrasFor(request, railPositions),
     });
   }
 }

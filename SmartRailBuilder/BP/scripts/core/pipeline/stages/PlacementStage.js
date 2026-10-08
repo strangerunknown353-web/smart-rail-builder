@@ -4,6 +4,8 @@ import { LocalizationKeys } from "../../../localization/LocalizationKeys.js";
 import { Logger } from "../../../utils/Logger.js";
 import { PipelineResult } from "../PipelineResult.js";
 import { BuildingMode } from "../../../config/BuildModes.js";
+import { createExtrasState } from "../../../builder/ExtrasBuilder.js";
+import { InventoryManager } from "../../../inventory/InventoryManager.js";
 
 /**
  * PlacementStage.js
@@ -115,9 +117,10 @@ export class PlacementStage {
    *   Added Project Prompt 16 — see ROADMAP PHASE 16 CHANGE above.
    * @param {import("../../ActiveBuildRegistry.js").ActiveBuildRegistry} activeBuildRegistry
    * @param {import("../../BuildHistory.js").BuildHistory} [buildHistory] v2.0.0 — undo history; optional.
+   * @param {import("../../../inventory/InventoryManager.js").InventoryManager} [inventoryManager] v2.0.0 — extras (boosters/lights); optional.
    *   Added Project Prompt 22 — see MULTIPLAYER CONFLICT CLAIM above.
    */
-  constructor(railBuilder, cancellationWatcher, messageService, strategiesByMode, activeBuildRegistry, buildHistory) {
+  constructor(railBuilder, cancellationWatcher, messageService, strategiesByMode, activeBuildRegistry, buildHistory, inventoryManager) {
     this.name = "PlacementStage";
     /** @private */
     this._railBuilder = railBuilder;
@@ -131,6 +134,8 @@ export class PlacementStage {
     this._activeBuildRegistry = activeBuildRegistry;
     /** @private v2.0.0 — receives each build's journal for "Undo last build". Optional. */
     this._buildHistory = buildHistory;
+    /** @private v2.0.0 Step 3 — picks the tunnel light block. InventoryManager is stateless, so a default instance is fine. */
+    this._inventoryManager = inventoryManager ?? new InventoryManager();
   }
 
   /**
@@ -198,11 +203,17 @@ export class PlacementStage {
 
     const session = new BuildSession(request, actualLength);
     context.buildSession = session;
+    // v2.0.0 Step 3: boosters / tunnel lights planned in BuildPlan.extras.
+    const extrasPlan = context.buildPlan.extras;
+    if (extrasPlan && (extrasPlan.boosters.length > 0 || extrasPlan.lights.length > 0)) {
+      session.extras = createExtrasState(extrasPlan, player, this._inventoryManager);
+    }
     this._cancellationWatcher.registerSession(player.id, session);
 
     try {
       const buildResult = await this._railBuilder.run(session, path, strategy);
       context.placementResult = buildResult;
+      this._reportExtras(player, session.extras);
 
       Logger.info(
         `Placement finished for ${player.name}: ${buildResult.blocksPlaced}/${actualLength} placed, ` +
@@ -251,6 +262,29 @@ export class PlacementStage {
       // v2.0.0: complete, partial and cancelled builds are all undoable —
       // the journal holds exactly what was actually changed.
       this._buildHistory?.record(player.id, session.journal);
+    }
+  }
+
+  /**
+   * v2.0.0 Step 3: tells the player how many boosters / lights went in, and
+   * why some didn't. Extras never fail a build (builder/ExtrasBuilder.js),
+   * so this is the only place a shortfall becomes visible.
+   * @private
+   */
+  _reportExtras(player, extras) {
+    if (!extras) return;
+    if (extras.boostersRequested > 0) {
+      this._messageService.sendChat(player, LocalizationKeys.EXTRAS_BOOSTERS_PLACED, [extras.boostersPlaced, extras.boostersRequested]);
+      if (extras.boostersPlaced < extras.boostersRequested) {
+        this._messageService.sendChat(player, LocalizationKeys.EXTRAS_BOOSTERS_SHORT);
+      }
+    }
+    if (extras.lightsRequested > 0) {
+      if (!extras.lightBlockId) {
+        this._messageService.sendChat(player, LocalizationKeys.EXTRAS_NO_LIGHT_BLOCKS);
+      } else {
+        this._messageService.sendChat(player, LocalizationKeys.EXTRAS_LIGHTS_PLACED, [extras.lightsPlaced, extras.lightsRequested]);
+      }
     }
   }
 }
