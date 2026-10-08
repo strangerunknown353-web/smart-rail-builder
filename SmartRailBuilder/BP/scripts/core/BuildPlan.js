@@ -74,6 +74,7 @@ function extrasFor(request, railPositions) {
     railPositions,
     boosterSpacing: request.boosterSpacing,
     lightSpacing: request.lightSpacing,
+    guardRails: request.guardRails,
   });
 }
 
@@ -169,6 +170,7 @@ export class BuildPlan {
       ...(tunnelPositions ?? []).map(positionKey),
       ...this.extras.boosters.map((b) => positionKey(b.powerPosition)),
       ...this.extras.lights.map((l) => positionKey(l.position)),
+      ...(this.extras.guardRails ?? []).flatMap((g) => g.positions.map(positionKey)),
     ]);
   }
 
@@ -227,6 +229,7 @@ export class BuildPlan {
       const tunnelPositions = [
         ...plan.railSteps.flatMap((s) => s.excavationPositions),
         ...plan.railSteps.flatMap((s) => s.sealPositions),
+        ...plan.railSteps.flatMap((s) => s.floorFillPositions ?? []),
         ...(plan.landingExcavationPositions ?? []),
       ];
       return new BuildPlan({

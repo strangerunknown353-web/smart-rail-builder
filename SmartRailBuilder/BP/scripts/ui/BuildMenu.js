@@ -1,6 +1,7 @@
 import { ActionFormData, ModalFormData, MessageFormData } from "@minecraft/server-ui";
 import { BUILD_MODE_REGISTRY, BUILD_MODE_ORDER, BuildingMode } from "../config/BuildModes.js";
 import { EXTRAS_CONFIG, pickSpacing } from "../config/ExtrasConfig.js";
+import { LENGTH_PRESETS } from "../config/RailConfig.js";
 import { RAIL_TYPES } from "../config/RailConfig.js";
 import { LocalizationKeys } from "../localization/LocalizationKeys.js";
 import { DirectionUtils } from "../utils/DirectionUtils.js";
@@ -137,6 +138,7 @@ export const MenuAction = Object.freeze({
   MODE: "MODE",
   REPEAT: "REPEAT",
   UNDO: "UNDO",
+  SETTINGS: "SETTINGS", // v2.0.0 Step 4
 });
 
 /** Repeat-button label key per mode — each shows that mode's own settings. */
@@ -151,19 +153,33 @@ const REPEAT_LABEL_KEYS = Object.freeze({
  * when either is relevant (boosters on, or an Underground build). Without
  * extras it's exactly the v1 `{translate, with}` body.
  */
-function summaryBody(bodyKey, substitutions, mode, boosterSpacing, lightSpacing) {
+function summaryBody(bodyKey, substitutions, mode, { boosterSpacing, lightSpacing, fillCaveGaps, guardRails }) {
   const main = { translate: bodyKey, with: substitutions.map(String) };
-  if (boosterSpacing <= 0 && mode !== BuildingMode.UNDERGROUND) return main;
-  return {
-    rawtext: [
-      main,
-      { text: "\n\n" },
-      {
-        translate: LocalizationKeys.MENU_SUMMARY_EXTRAS,
-        with: { rawtext: [spacingLabel(boosterSpacing), spacingLabel(mode === BuildingMode.UNDERGROUND ? lightSpacing : 0)] },
-      },
-    ],
-  };
+  const isUnderground = mode === BuildingMode.UNDERGROUND;
+  const isBridge = mode === BuildingMode.BRIDGE;
+  // Step 4 toggles only show when the caller passed them (undefined = a pre-Step-4 caller).
+  const showCave = isUnderground && fillCaveGaps !== undefined;
+  const showGuard = isBridge && guardRails !== undefined;
+  if (boosterSpacing <= 0 && !isUnderground && !showGuard) return main;
+  const rawtext = [
+    main,
+    { text: "\n\n" },
+    {
+      translate: LocalizationKeys.MENU_SUMMARY_EXTRAS,
+      with: { rawtext: [spacingLabel(boosterSpacing), spacingLabel(isUnderground ? lightSpacing : 0)] },
+    },
+  ];
+  if (showCave) {
+    rawtext.push({ text: "\n" }, { translate: LocalizationKeys.MENU_SUMMARY_CAVE_FILL, with: { rawtext: [onOff(fillCaveGaps)] } });
+  }
+  if (showGuard) {
+    rawtext.push({ text: "\n" }, { translate: LocalizationKeys.MENU_SUMMARY_GUARD_RAILS, with: { rawtext: [onOff(guardRails)] } });
+  }
+  return { rawtext };
+}
+
+function onOff(value) {
+  return { translate: value ? LocalizationKeys.MENU_ON : LocalizationKeys.MENU_OFF };
 }
 
 /** v2.0.0 Step 3: dropdown label for a spacing value (0 = "Off"). */
@@ -192,14 +208,15 @@ export class BuildMenu {
    * STEP: Select Building Mode.
    *
    * v2.0.0: when `lastSettings` is given, a "Repeat last build" button is
-   * shown first; when `canUndo` is true, an "Undo last build" button is
-   * shown last. With neither, the screen is exactly the v1 mode list.
+   * shown first; `showSettings` adds "Settings" after the modes (Step 4);
+   * when `canUndo` is true, an "Undo last build" button is shown last.
+   * With none of them, the screen is exactly the v1 mode list.
    *
    * @param {import("@minecraft/server").Player} player
-   * @param {{lastSettings?: import("../core/PlayerBuildSettings.js").LastBuildSettings|null, canUndo?: boolean}} [options]
+   * @param {{lastSettings?: import("../core/PlayerBuildSettings.js").LastBuildSettings|null, canUndo?: boolean, showSettings?: boolean}} [options]
    * @returns {Promise<ModeMenuResult>}
    */
-  async promptForMode(player, { lastSettings = null, canUndo = false } = {}) {
+  async promptForMode(player, { lastSettings = null, canUndo = false, showSettings = false } = {}) {
     const form = new ActionFormData()
       .title({ translate: LocalizationKeys.MENU_MODE_TITLE })
       .body({ translate: LocalizationKeys.MENU_MODE_BODY });
@@ -215,6 +232,10 @@ export class BuildMenu {
     for (const modeId of BUILD_MODE_ORDER) {
       form.button({ translate: BUILD_MODE_REGISTRY[modeId].buttonLabelKey });
       buttons.push({ action: MenuAction.MODE, mode: modeId });
+    }
+    if (showSettings) {
+      form.button({ translate: LocalizationKeys.MENU_SETTINGS_BUTTON });
+      buttons.push({ action: MenuAction.SETTINGS });
     }
     if (canUndo) {
       form.button({ translate: LocalizationKeys.MENU_UNDO_BUTTON });
@@ -306,7 +327,17 @@ export class BuildMenu {
   async promptForConfiguration(
     player,
     mode,
-    { minLength, maxLength, step, defaultLength, defaultModeValue, defaultBoosterSpacing, defaultLightSpacing }
+    {
+      minLength,
+      maxLength,
+      step,
+      defaultLength,
+      defaultModeValue,
+      defaultBoosterSpacing,
+      defaultLightSpacing,
+      defaultFillCaveGaps = true,
+      defaultGuardRails = false,
+    }
   ) {
     const modeDef = BUILD_MODE_REGISTRY[mode];
     const form = new ModalFormData().title({ translate: LocalizationKeys.MENU_TITLE });
@@ -351,6 +382,14 @@ export class BuildMenu {
         defaultValueIndex: lightOptions.indexOf(lightDefault),
       });
       fieldOrder.push("lightSpacing");
+      // v2.0.0 Step 4
+      form.toggle({ translate: LocalizationKeys.MENU_CAVE_FILL_LABEL }, { defaultValue: defaultFillCaveGaps === true });
+      fieldOrder.push("fillCaveGaps");
+    }
+    if (mode === BuildingMode.BRIDGE) {
+      // v2.0.0 Step 4
+      form.toggle({ translate: LocalizationKeys.MENU_GUARD_RAILS_LABEL }, { defaultValue: defaultGuardRails === true });
+      fieldOrder.push("guardRails");
     }
 
     form.submitButton({ translate: LocalizationKeys.MENU_NEXT_BUTTON });
@@ -371,13 +410,18 @@ export class BuildMenu {
       return { cancelled: true };
     }
 
-    const result = { cancelled: false, boosterSpacing: boosterDefault, lightSpacing: 0 };
-    if (mode === BuildingMode.UNDERGROUND) result.lightSpacing = lightDefault;
+    const result = { cancelled: false, boosterSpacing: boosterDefault, lightSpacing: 0, fillCaveGaps: false, guardRails: false };
+    if (mode === BuildingMode.UNDERGROUND) {
+      result.lightSpacing = lightDefault;
+      result.fillCaveGaps = defaultFillCaveGaps === true;
+    }
+    if (mode === BuildingMode.BRIDGE) result.guardRails = defaultGuardRails === true;
     fieldOrder.forEach((field, index) => {
       const value = response.formValues?.[index];
       if (value === undefined) return;
       if (field === "boosterSpacing") result.boosterSpacing = boosterOptions[value] ?? boosterDefault;
       else if (field === "lightSpacing") result.lightSpacing = lightOptions[value] ?? lightDefault;
+      else if (field === "fillCaveGaps" || field === "guardRails") result[field] = value === true;
       else result[field] = value;
     });
     return result;
@@ -399,7 +443,10 @@ export class BuildMenu {
    *   is only meaningful when `cancelled` is false — MessageFormData always
    *   reports exactly one of its two buttons as pressed, never both.
    */
-  async promptForSummary(player, { railTypeId, mode, modeValue, materialId, length, direction, boosterSpacing = 0, lightSpacing = 0 }) {
+  async promptForSummary(
+    player,
+    { railTypeId, mode, modeValue, materialId, length, direction, boosterSpacing = 0, lightSpacing = 0, fillCaveGaps, guardRails }
+  ) {
     const modeDef = BUILD_MODE_REGISTRY[mode];
     const railDisplayName = RAIL_TYPES[railTypeId]?.displayName ?? railTypeId;
     const modeDisplayName = modeDef?.displayName ?? mode;
@@ -421,7 +468,7 @@ export class BuildMenu {
 
     const form = new MessageFormData()
       .title({ translate: LocalizationKeys.MENU_SUMMARY_TITLE })
-      .body(summaryBody(bodyKey, substitutions, mode, boosterSpacing, lightSpacing))
+      .body(summaryBody(bodyKey, substitutions, mode, { boosterSpacing, lightSpacing, fillCaveGaps, guardRails }))
       .button1({ translate: LocalizationKeys.MENU_SUMMARY_BUILD_BUTTON })
       .button2({ translate: LocalizationKeys.MENU_SUMMARY_CANCEL_BUTTON });
 
@@ -444,5 +491,60 @@ export class BuildMenu {
     // MessageFormData: selection 0 === button1 (Build), 1 === button2 (Cancel).
     const confirmed = response.selection === 0;
     return { cancelled: false, confirmed };
+  }
+
+  /**
+   * v2.0.0 Step 4 — the Settings screen (crouch menu -> Settings).
+   * Field order: default length, boosters, tunnel lights, fill cave gaps,
+   * guard rails, quick repeat, show tips.
+   *
+   * @param {import("@minecraft/server").Player} player
+   * @param {import("../core/PlayerPreferences.js").Preferences} current
+   * @returns {Promise<{cancelled: boolean, preferences?: import("../core/PlayerPreferences.js").Preferences}>}
+   */
+  async promptForSettings(player, current) {
+    const boosterOptions = EXTRAS_CONFIG.BOOSTER_SPACING_OPTIONS;
+    const lightOptions = EXTRAS_CONFIG.LIGHT_SPACING_OPTIONS;
+    const form = new ModalFormData()
+      .title({ translate: LocalizationKeys.MENU_SETTINGS_TITLE })
+      .slider({ translate: LocalizationKeys.SETTINGS_DEFAULT_LENGTH }, LENGTH_PRESETS.MIN, LENGTH_PRESETS.MAX_SURVIVAL, {
+        valueStep: LENGTH_PRESETS.STEP,
+        defaultValue: current.defaultLength,
+      })
+      .dropdown({ translate: LocalizationKeys.MENU_BOOSTER_LABEL }, boosterOptions.map(spacingLabel), {
+        defaultValueIndex: Math.max(0, boosterOptions.indexOf(current.boosterSpacing)),
+      })
+      .dropdown({ translate: LocalizationKeys.MENU_LIGHT_LABEL }, lightOptions.map(spacingLabel), {
+        defaultValueIndex: Math.max(0, lightOptions.indexOf(current.lightSpacing)),
+      })
+      .toggle({ translate: LocalizationKeys.MENU_CAVE_FILL_LABEL }, { defaultValue: current.fillCaveGaps })
+      .toggle({ translate: LocalizationKeys.MENU_GUARD_RAILS_LABEL }, { defaultValue: current.guardRails })
+      .toggle({ translate: LocalizationKeys.SETTINGS_QUICK_REPEAT }, { defaultValue: current.quickRepeat })
+      .toggle({ translate: LocalizationKeys.SETTINGS_SHOW_TIPS }, { defaultValue: current.showTips })
+      .submitButton({ translate: LocalizationKeys.SETTINGS_SAVE_BUTTON });
+
+    let response;
+    try {
+      response = await form.show(player);
+    } catch (error) {
+      Logger.warn(`BuildMenu failed to show the settings screen for ${player?.name ?? "unknown player"}`, error);
+      return { cancelled: true };
+    }
+    if (response.canceled) return { cancelled: true };
+
+    const v = response.formValues ?? [];
+    const pick = (index, fallback) => (v[index] === undefined ? fallback : v[index]);
+    return {
+      cancelled: false,
+      preferences: {
+        defaultLength: pick(0, current.defaultLength),
+        boosterSpacing: boosterOptions[pick(1, -1)] ?? current.boosterSpacing,
+        lightSpacing: lightOptions[pick(2, -1)] ?? current.lightSpacing,
+        fillCaveGaps: pick(3, current.fillCaveGaps) === true,
+        guardRails: pick(4, current.guardRails) === true,
+        quickRepeat: pick(5, current.quickRepeat) === true,
+        showTips: pick(6, current.showTips) === true,
+      },
+    };
   }
 }

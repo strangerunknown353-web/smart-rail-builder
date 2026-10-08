@@ -24,6 +24,7 @@
 
 import { BuildingMode } from "../config/BuildModes.js";
 import { DirectionUtils } from "../utils/DirectionUtils.js";
+import { EXTRAS_CONFIG } from "../config/ExtrasConfig.js";
 
 /**
  * @typedef {Object} ExtrasPlan
@@ -31,6 +32,9 @@ import { DirectionUtils } from "../utils/DirectionUtils.js";
  * @property {number} lightSpacing
  * @property {ReadonlyArray<{index: number, powerPosition: {x:number,y:number,z:number}}>} boosters
  * @property {ReadonlyArray<{index: number, position: {x:number,y:number,z:number}}>} lights
+ * @property {ReadonlyArray<{index: number, positions: ReadonlyArray<{x:number,y:number,z:number}>}>} [guardRails]
+ *   v2.0.0 Step 4 — Bridge only: candidate fence spots left and right of each
+ *   deck rail. ExtrasBuilder only fills the ones that end up over a drop.
  */
 
 /** The block to the LEFT of `direction`, one step sideways. */
@@ -48,7 +52,7 @@ function leftOf(direction) {
  * @param {number} [params.lightSpacing] 0/undefined = off; Underground only
  * @returns {ExtrasPlan}
  */
-export function planExtras({ buildingMode, direction, railPositions, boosterSpacing = 0, lightSpacing = 0 }) {
+export function planExtras({ buildingMode, direction, railPositions, boosterSpacing = 0, lightSpacing = 0, guardRails = false }) {
   const boosters = [];
   if (boosterSpacing > 0) {
     for (let i = 0; i < railPositions.length; i += boosterSpacing) {
@@ -67,8 +71,53 @@ export function planExtras({ buildingMode, direction, railPositions, boosterSpac
     }
   }
 
-  return { boosterSpacing, lightSpacing: effectiveLightSpacing, boosters, lights };
+  const guardRailSpots = [];
+  if (guardRails && buildingMode === BuildingMode.BRIDGE) {
+    const side = leftOf(direction);
+    railPositions.forEach((p, index) => {
+      guardRailSpots.push({
+        index,
+        positions: [
+          { x: p.x + side.x, y: p.y, z: p.z + side.z },
+          { x: p.x - side.x, y: p.y, z: p.z - side.z },
+        ],
+      });
+    });
+  }
+
+  return { boosterSpacing, lightSpacing: effectiveLightSpacing, boosters, lights, guardRails: guardRailSpots };
 }
 
 /** An empty plan — what builds without extras (and pre-v2 callers) get. */
-export const NO_EXTRAS = Object.freeze({ boosterSpacing: 0, lightSpacing: 0, boosters: Object.freeze([]), lights: Object.freeze([]) });
+export const NO_EXTRAS = Object.freeze({
+  boosterSpacing: 0,
+  lightSpacing: 0,
+  boosters: Object.freeze([]),
+  lights: Object.freeze([]),
+  guardRails: Object.freeze([]),
+});
+
+/**
+ * v2.0.0 Step 4 (rail-count fix): how many of the HELD rail type a build
+ * really needs. Each booster the player can afford (a powered rail AND a
+ * redstone block) replaces one held rail, so Survival players aren't asked
+ * to carry rails that will never be placed. Same booster count rule as
+ * planExtras() (indices 0, s, 2s, ...).
+ *
+ * @param {import("../inventory/InventoryManager.js").InventoryManager} inventoryManager
+ * @param {import("@minecraft/server").Player} player
+ * @param {{railTypeId: string, boosterSpacing?: number}} request
+ * @param {number} railCount rails the plan places
+ * @returns {number}
+ */
+export function heldRailsRequired(inventoryManager, player, request, railCount) {
+  const spacing = request.boosterSpacing ?? 0;
+  if (spacing <= 0 || request.railTypeId === EXTRAS_CONFIG.BOOSTER_RAIL_ID) return railCount;
+  const boosters = Math.ceil(railCount / spacing);
+  const affordable = Math.min(
+    boosters,
+    inventoryManager.countRailItems(player, EXTRAS_CONFIG.BOOSTER_RAIL_ID),
+    inventoryManager.countRailItems(player, EXTRAS_CONFIG.POWER_BLOCK_ID)
+  );
+  return railCount - affordable;
+}

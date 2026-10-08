@@ -205,7 +205,7 @@ export class PlacementStage {
     context.buildSession = session;
     // v2.0.0 Step 3: boosters / tunnel lights planned in BuildPlan.extras.
     const extrasPlan = context.buildPlan.extras;
-    if (extrasPlan && (extrasPlan.boosters.length > 0 || extrasPlan.lights.length > 0)) {
+    if (extrasPlan && (extrasPlan.boosters.length > 0 || extrasPlan.lights.length > 0 || extrasPlan.guardRails?.length > 0)) {
       session.extras = createExtrasState(extrasPlan, player, this._inventoryManager);
     }
     this._cancellationWatcher.registerSession(player.id, session);
@@ -277,6 +277,14 @@ export class PlacementStage {
       this._messageService.sendChat(player, LocalizationKeys.EXTRAS_BOOSTERS_PLACED, [extras.boostersPlaced, extras.boostersRequested]);
       if (extras.boostersPlaced < extras.boostersRequested) {
         this._messageService.sendChat(player, LocalizationKeys.EXTRAS_BOOSTERS_SHORT);
+      }
+    }
+    if (extras.guardRailsRequested) {
+      if (!extras.fenceId) {
+        this._messageService.sendChat(player, LocalizationKeys.EXTRAS_NO_FENCES);
+      } else {
+        this._messageService.sendChat(player, LocalizationKeys.EXTRAS_FENCES_PLACED, [extras.fencesPlaced]);
+        if (extras.fencesRanOut) this._messageService.sendChat(player, LocalizationKeys.EXTRAS_FENCES_RAN_OUT);
       }
     }
     if (extras.lightsRequested > 0) {

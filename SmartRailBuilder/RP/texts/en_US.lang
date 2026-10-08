@@ -138,3 +138,22 @@ ryzenRailBuilder.extras.boostersPlaced=§7Boosters placed: §f%1$s§7 of §f%2$s
 ryzenRailBuilder.extras.boostersShort=§eSome boosters were skipped — carry powered rails and redstone blocks to place them all.
 ryzenRailBuilder.extras.lightsPlaced=§7Tunnel lights placed: §f%1$s§7 of §f%2$s
 ryzenRailBuilder.extras.noLightBlocks=§eNo light blocks in your inventory — the tunnel was built without lights. Carry glowstone, sea lanterns, shroomlights or froglights.
+
+## v2.0.0 — Settings screen, cave filling, bridge guard rails, quick repeat
+ryzenRailBuilder.menu.settingsButton=§9Settings
+ryzenRailBuilder.menu.settingsTitle=Smart Rail Builder — Settings
+ryzenRailBuilder.settings.defaultLength=Default railway length
+ryzenRailBuilder.settings.quickRepeat=Quick repeat (Repeat last build skips the confirm screen)
+ryzenRailBuilder.settings.showTips=Show tips
+ryzenRailBuilder.settings.saveButton=Save
+ryzenRailBuilder.settings.saved=§7[Smart Rail Builder]§r §aSettings saved.
+ryzenRailBuilder.menu.caveFillLabel=Fill cave gaps under the tunnel (free stone)
+ryzenRailBuilder.menu.guardRailsLabel=Guard rails (fences) on bridges
+ryzenRailBuilder.menu.summaryCaveFill=§7Fill cave gaps: §f%1$s
+ryzenRailBuilder.menu.summaryGuardRails=§7Guard rails: §f%1$s
+ryzenRailBuilder.menu.on=On
+ryzenRailBuilder.menu.off=Off
+ryzenRailBuilder.extras.fencesPlaced=§7Guard rail fences placed: §f%1$s
+ryzenRailBuilder.extras.fencesRanOut=§eRan out of fences — part of the bridge has no guard rails.
+ryzenRailBuilder.extras.noFences=§eNo fences in your inventory — the bridge was built without guard rails.
+ryzenRailBuilder.actionbar.quickRepeat=§aRepeating last build...

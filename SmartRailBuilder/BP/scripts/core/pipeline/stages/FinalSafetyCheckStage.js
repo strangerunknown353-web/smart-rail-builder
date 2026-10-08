@@ -2,6 +2,7 @@ import { LocalizationKeys } from "../../../localization/LocalizationKeys.js";
 import { Logger } from "../../../utils/Logger.js";
 import { PipelineResult } from "../PipelineResult.js";
 import { BuildingMode } from "../../../config/BuildModes.js";
+import { currentTick } from "../../../utils/Tick.js";
 
 /**
  * FinalSafetyCheckStage.js
@@ -81,6 +82,20 @@ export class FinalSafetyCheckStage {
   execute(context) {
     const { dimension, buildVector, requestedLength, player, buildingMode, bridgeHeight, undergroundDepth } = context.request;
 
+    // v2.0.0 SAME-TICK REUSE (optimization): this stage exists to catch world
+    // changes between TerrainScanningStage's scan and now. Every stage in
+    // between is synchronous, so normally both run in the very same game
+    // tick — and the world cannot change mid-tick while this script is
+    // running. In that case the earlier scan IS the fresh scan, and
+    // re-scanning the whole route (hundreds of block reads) is pure cost.
+    // If any tick has passed, or the tick can't be read, re-scan exactly
+    // as before. Placement still re-checks every block as it builds.
+    const tick = currentTick();
+    if (tick !== undefined && context.terrainScannedAtTick === tick) {
+      Logger.debug(`Final safety check for ${player.name}: same tick as the terrain scan (${tick}) — reusing it.`);
+      return PipelineResult.success();
+    }
+
     if (buildingMode === BuildingMode.BRIDGE) {
       this._messageService.sendActionBar(player, LocalizationKeys.ACTIONBAR_VERIFYING);
       const freshPlan = this._terrainScanner.planBridge(buildVector, requestedLength, dimension, bridgeHeight);
@@ -96,7 +111,9 @@ export class FinalSafetyCheckStage {
 
     if (buildingMode === BuildingMode.UNDERGROUND) {
       this._messageService.sendActionBar(player, LocalizationKeys.ACTIONBAR_VERIFYING);
-      const freshPlan = this._terrainScanner.planUnderground(buildVector, requestedLength, dimension, undergroundDepth);
+      const freshPlan = this._terrainScanner.planUnderground(buildVector, requestedLength, dimension, undergroundDepth, {
+        fillCaveGaps: context.request.fillCaveGaps,
+      });
       context.undergroundPlan = freshPlan;
 
       if (!freshPlan.feasible) {

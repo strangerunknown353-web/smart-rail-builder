@@ -37,6 +37,8 @@ export const LAST_BUILD_PROPERTY = "smart_rail_builder:last_build";
  * @property {string} [materialId] Bridge material.
  * @property {number} [boosterSpacing] v2.0.0 Step 3 — 0 = off.
  * @property {number} [lightSpacing] v2.0.0 Step 3 — Underground only, 0 = off.
+ * @property {boolean} [fillCaveGaps] v2.0.0 Step 4 — Underground only.
+ * @property {boolean} [guardRails] v2.0.0 Step 4 — Bridge only.
  */
 
 /**
@@ -67,6 +69,10 @@ export function sanitizeSettings(value) {
   settings.boosterSpacing = pickSpacing(value.boosterSpacing, EXTRAS_CONFIG.BOOSTER_SPACING_OPTIONS, EXTRAS_CONFIG.DEFAULT_BOOSTER_SPACING);
   if (modeDef.id === BuildingMode.UNDERGROUND) {
     settings.lightSpacing = pickSpacing(value.lightSpacing, EXTRAS_CONFIG.LIGHT_SPACING_OPTIONS, EXTRAS_CONFIG.DEFAULT_LIGHT_SPACING);
+    settings.fillCaveGaps = value.fillCaveGaps === true;
+  }
+  if (modeDef.id === BuildingMode.BRIDGE) {
+    settings.guardRails = value.guardRails === true;
   }
   return settings;
 }

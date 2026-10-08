@@ -1,4 +1,3 @@
-import { GameMode } from "@minecraft/server";
 import { TerrainClassification } from "../../terrain/TerrainClassification.js";
 import { buildStraightRailPermutation, buildAscendingRailPermutation } from "../RailPermutationBuilder.js";
 import { RAIL_ITEM_ID_SET } from "../../config/RailConfig.js";
@@ -194,13 +193,14 @@ export class StraightRailStrategy {
         continue;
       }
 
-      const isSurvival = player.getGameMode() !== GameMode.Creative;
-      if (isSurvival && !this._inventoryManager.hasAtLeast(player, railTypeId, 1)) {
-        Logger.warn(`Build stopped for ${player.name} at block ${i}: ran out of ${railTypeId}.`);
-        return this._result(session, "OUT_OF_RESOURCES");
-      }
+      const isSurvival = session.isSurvival;
       // v2.0.0: a booster index places its redstone block now and becomes a powered rail.
       const placeTypeId = this._extras.prepareRail(session, i, railTypeId);
+      // Checked after prepareRail(): a booster spot needs a powered rail, not a held one.
+      if (isSurvival && !this._inventoryManager.hasAtLeast(player, placeTypeId, 1)) {
+        Logger.warn(`Build stopped for ${player.name} at block ${i}: ran out of ${placeTypeId}.`);
+        return this._result(session, "OUT_OF_RESOURCES");
+      }
 
       try {
         const permutation = slopeDirection

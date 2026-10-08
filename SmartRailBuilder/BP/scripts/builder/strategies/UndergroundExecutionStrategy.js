@@ -1,4 +1,3 @@
-import { GameMode } from "@minecraft/server";
 import { buildStraightRailPermutation, buildAscendingRailPermutation } from "../RailPermutationBuilder.js";
 import { RAIL_ITEM_ID_SET } from "../../config/RailConfig.js";
 import { UNDERGROUND_CONFIG } from "../../config/UndergroundConfig.js";
@@ -165,6 +164,12 @@ export class UndergroundExecutionStrategy {
       // rather than assuming excavateRow's success implies it. Deliberately
       // narrow (this one block), not a re-run of planUnderground's whole
       // per-position analysis — the route was already committed to.
+      // v2.0.0 Step 4: support column under the rail where the tunnel
+      // crosses an open cave (bottom-up; empty unless "Fill cave gaps").
+      if (step.floorFillPositions?.length > 0) {
+        this._tunnelExcavator.sealPositions(dimension, step.floorFillPositions, UNDERGROUND_CONFIG.SEAL_BLOCK_ID, session.journal);
+      }
+
       const read = readBlock(dimension, step.position);
       if (read.status !== "OK") {
         Logger.warn(`Underground build stopped for ${player.name} at step ${i}: chunk unloaded mid-build.`);
@@ -194,13 +199,14 @@ export class UndergroundExecutionStrategy {
         return this._result(session, "UNDERGROUND_CLEARANCE_FAILED");
       }
 
-      const isSurvival = player.getGameMode() !== GameMode.Creative;
-      if (isSurvival && !this._inventoryManager.hasAtLeast(player, railTypeId, 1)) {
-        Logger.warn(`Underground build stopped for ${player.name} at step ${i}: ran out of ${railTypeId}.`);
-        return this._result(session, "OUT_OF_RESOURCES");
-      }
+      const isSurvival = session.isSurvival;
       // v2.0.0: a booster index places its redstone block now and becomes a powered rail.
       const placeTypeId = this._extras.prepareRail(session, i, railTypeId);
+      // Checked after prepareRail(): a booster spot needs a powered rail, not a held one.
+      if (isSurvival && !this._inventoryManager.hasAtLeast(player, placeTypeId, 1)) {
+        Logger.warn(`Underground build stopped for ${player.name} at step ${i}: ran out of ${placeTypeId}.`);
+        return this._result(session, "OUT_OF_RESOURCES");
+      }
 
       try {
         // Exactly the same call shape StraightRailStrategy uses for slopes —

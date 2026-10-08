@@ -5,6 +5,7 @@ import { PipelineResult } from "../PipelineResult.js";
 import { BuildingMode } from "../../../config/BuildModes.js";
 import { BuildPlan } from "../../BuildPlan.js";
 import { formatBlockDisplayName } from "../../../utils/BlockDisplayName.js";
+import { heldRailsRequired } from "../../ExtrasPlan.js";
 
 /**
  * BuildPlanStage.js
@@ -114,7 +115,11 @@ export class BuildPlanStage {
           ? context.undergroundPlan.requiredRailCount
           : context.terrainReport.positions.length;
 
-    const railReport = this._inventoryManager.buildReport(player, request.railTypeId, requiredRailCount);
+    const railReport = this._inventoryManager.buildReport(
+      player,
+      request.railTypeId,
+      heldRailsRequired(this._inventoryManager, player, request, requiredRailCount) // v2.0.0 Step 4
+    );
     const railValidation = this._resourceValidator.validate(railReport, gameMode, "RAILS");
     if (!railValidation.valid) {
       Logger.warn(

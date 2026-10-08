@@ -1,4 +1,3 @@
-import { GameMode } from "@minecraft/server";
 import { buildStraightRailPermutation, buildAscendingRailPermutation } from "../RailPermutationBuilder.js";
 import { REPLACEABLE_BLOCK_ID_SET } from "../../config/ReplaceableBlockRegistry.js";
 import { RAIL_ITEM_ID_SET } from "../../config/RailConfig.js";
@@ -190,14 +189,15 @@ export class BridgeExecutionStrategy {
         return this._result(session, "BRIDGE_DECK_OBSTRUCTED_DURING_BUILD");
       }
 
-      const isSurvival = player.getGameMode() !== GameMode.Creative;
-      if (isSurvival && !this._inventoryManager.hasAtLeast(player, session.railTypeId, 1)) {
-        Logger.warn(`Bridge build stopped for ${player.name}: ran out of ${session.railTypeId}.`);
-        return this._result(session, "OUT_OF_RESOURCES");
-      }
+      const isSurvival = session.isSurvival;
       // v2.0.0: a booster index becomes a powered rail (its redstone block is
       // usually already in place as the deck surface — see _placeMaterial).
       const placeTypeId = this._extras.prepareRail(session, deckIndex, session.railTypeId);
+      // Checked after prepareRail(): a booster spot needs a powered rail, not a held one.
+      if (isSurvival && !this._inventoryManager.hasAtLeast(player, placeTypeId, 1)) {
+        Logger.warn(`Bridge build stopped for ${player.name}: ran out of ${placeTypeId}.`);
+        return this._result(session, "OUT_OF_RESOURCES");
+      }
 
       try {
         // Slope-aware as of this revision — mirrors exactly how
@@ -216,6 +216,8 @@ export class BridgeExecutionStrategy {
       if (isSurvival) {
         this._inventoryManager.deductRailItems(player, placeTypeId, 1);
       }
+      // v2.0.0 Step 4: fences either side of this deck rail, where there's a drop.
+      this._extras.placeGuardRails(session, deckIndex);
       this._progressReporter.reportIfDue(session);
       yield;
     }
@@ -248,7 +250,7 @@ export class BridgeExecutionStrategy {
       return session.cancelReason;
     }
 
-    const isSurvival = player.getGameMode() !== GameMode.Creative;
+    const isSurvival = session.isSurvival;
     if (isSurvival && !this._inventoryManager.hasAtLeast(player, materialId, 1)) {
       Logger.warn(`Bridge build stopped for ${player.name}: ran out of ${materialId}.`);
       return "OUT_OF_BRIDGE_MATERIAL";

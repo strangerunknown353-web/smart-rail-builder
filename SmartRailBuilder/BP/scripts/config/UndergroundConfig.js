@@ -104,4 +104,14 @@ export const UNDERGROUND_CONFIG = Object.freeze({
    * one-line change, nothing else depends on the specific block chosen.
    */
   SEAL_BLOCK_ID: "minecraft:stone",
+
+  /**
+   * v2.0.0 Step 4 — cave gap filling. When "Fill cave gaps" is on and an
+   * underground rail would sit over an open cave, a support column of
+   * SEAL_BLOCK_ID is built from the first solid block below up to the
+   * rail's floor, at most this many blocks tall. Deeper drops are still
+   * rejected (UNSUPPORTED_FLOOR), exactly as before. Free like seals: the
+   * tunnel already removes far more stone than it ever puts back.
+   */
+  CAVE_FILL_MAX_DEPTH: 12,
 });

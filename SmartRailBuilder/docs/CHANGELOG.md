@@ -1434,3 +1434,27 @@ consecutive session on a base that has still never been confirmed in-game — se
   over 64 placements), cached `_isPlaceableBlock`, cached extras permutations, `LOGGING.MIN_LEVEL` INFO.
 - Tests: `tests/extras.test.mjs` (131 assertions). Mocks: `ModalFormData.dropdown` with all-field
   `formValues` indexing. Step 2 expectations updated for the new saved fields.
+
+### v2 Step 4 — Cave gap filling, bridge guard rails, Settings screen, rail-count fix — 2026-10-08
+- `TerrainScanner.planUnderground(..., {fillCaveGaps})`: an empty floor becomes a bottom-up
+  `floorFillPositions` column (`findCaveFillColumn`, max `UNDERGROUND_CONFIG.CAVE_FILL_MAX_DEPTH` = 12,
+  never through liquid/hazards) instead of UNSUPPORTED_FLOOR; `terrainSummary.caveFillCount`. Placed by
+  `UndergroundExecutionStrategy` via `TunnelExcavator.sealPositions` (journaled), included in
+  `BuildPlan.tunnelPositions`. TerrainScanningStage and FinalSafetyCheckStage pass the option.
+- Guard rails: `planExtras({guardRails})` plans left/right spots per deck rail (Bridge); 
+  `ExtrasBuilder.placeGuardRails` fills only open spots over a drop with the first carried fence
+  (`EXTRAS_CONFIG.FENCE_IDS`); PlacementStage reports placed / ran out / none.
+- `BuildRequest.fillCaveGaps` (Underground) / `guardRails` (Bridge), strictly boolean; carried by
+  Repeat and `PlayerBuildSettings`.
+- `core/PlayerPreferences.js` (per-field-forgiving, dynamic property `smart_rail_builder:prefs`);
+  `BuildMenu.promptForSettings`, "Settings" mode-menu button (`MenuAction.SETTINGS`, re-opens the menu,
+  max 5 visits), config toggles, summary lines; extras defaults now come from preferences; quick repeat
+  skips the summary; `showTips` gates the crouch hint in `main.js`. `BuildRequestCreationStage` gains
+  `preferences`, `messageService`.
+- `heldRailsRequired()` (core/ExtrasPlan.js) in InventoryStage + BuildPlanStage; strategies now check
+  affordability of the rail type actually placed (after `prepareRail`).
+- Optimizations: `FinalSafetyCheckStage` same-tick reuse of the TerrainScanningStage scan
+  (`utils/Tick.js`, falls back to a full re-scan whenever the tick differs or is unknown);
+  `BuildSession.isSurvival` cached per build (strategies + ExtrasBuilder).
+- Tests: `tests/step4.test.mjs` (55 assertions). Mocks: `ModalFormData.toggle`. Step 2 expectations
+  updated for the new saved fields.

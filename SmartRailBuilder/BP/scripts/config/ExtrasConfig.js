@@ -19,6 +19,28 @@
  */
 
 export const EXTRAS_CONFIG = Object.freeze({
+  /**
+   * v2.0.0 Step 4 — bridge guard rails: fences either side of the deck.
+   * Fences only (no walls): Bedrock fences connect on their own, while
+   * walls carry connection states setPermutation() wouldn't update.
+   * Survival uses the first fence type carried; Creative the first listed.
+   */
+  FENCE_IDS: Object.freeze([
+    "minecraft:oak_fence",
+    "minecraft:spruce_fence",
+    "minecraft:birch_fence",
+    "minecraft:jungle_fence",
+    "minecraft:acacia_fence",
+    "minecraft:dark_oak_fence",
+    "minecraft:mangrove_fence",
+    "minecraft:cherry_fence",
+    "minecraft:pale_oak_fence",
+    "minecraft:bamboo_fence",
+    "minecraft:crimson_fence",
+    "minecraft:warped_fence",
+    "minecraft:nether_brick_fence",
+  ]),
+
   /** Dropdown choices for booster spacing, in rails. 0 = off. */
   BOOSTER_SPACING_OPTIONS: Object.freeze([0, 8, 16, 24, 32]),
   /** Off by default: boosters cost powered rails + redstone blocks. */

@@ -2,7 +2,8 @@
  * realGraphV2.mjs — v2.0.0 test helper.
  *
  * The same object graph as BP/scripts/main.js's buildDependencyGraph(),
- * including the v2 pieces (BuildHistory, UndoService, PlayerBuildSettings),
+ * including the v2 pieces (BuildHistory, UndoService, PlayerBuildSettings,
+ * PlayerPreferences),
  * with BuildMenu supplied by the caller. integration.test.mjs keeps its own
  * v1-shaped copy on purpose — it proves the new constructor arguments are
  * optional.
@@ -51,6 +52,7 @@ import { BuildOrchestrator } from "../BP/scripts/core/BuildOrchestrator.js";
 import { BuildHistory } from "../BP/scripts/core/BuildHistory.js";
 import { UndoService } from "../BP/scripts/core/UndoService.js";
 import { PlayerBuildSettings } from "../BP/scripts/core/PlayerBuildSettings.js";
+import { PlayerPreferences } from "../BP/scripts/core/PlayerPreferences.js";
 
 export function buildV2DependencyGraph(buildMenu) {
   const terrainScanner = new TerrainScanner();
@@ -77,6 +79,7 @@ export function buildV2DependencyGraph(buildMenu) {
   const buildHistory = new BuildHistory();
   const undoService = new UndoService(buildHistory, inventoryManager, messageService);
   const buildSettings = new PlayerBuildSettings();
+  const preferences = new PlayerPreferences();
 
   const validationManager = new ValidationManager([
     new PlayerValidator(),
@@ -91,7 +94,7 @@ export function buildV2DependencyGraph(buildMenu) {
 
   const pipeline = new BuildPipeline([
     new RailDetectionStage(),
-    new BuildRequestCreationStage(buildMenu, inventoryManager, buildSettings, undoService),
+    new BuildRequestCreationStage(buildMenu, inventoryManager, buildSettings, undoService, preferences, messageService),
     new ValidationStage(validationManager, messageService),
     new ModeAvailabilityStage(),
     new TerrainScanningStage(terrainScanner, pathValidator, messageService, bridgeValidation, undergroundValidation),
@@ -103,5 +106,5 @@ export function buildV2DependencyGraph(buildMenu) {
   ]);
 
   const orchestrator = new BuildOrchestrator({ pipeline, messageService });
-  return { orchestrator, pipeline, cancellationWatcher, inventoryManager, activeBuildRegistry, buildHistory, undoService, buildSettings };
+  return { orchestrator, pipeline, cancellationWatcher, inventoryManager, activeBuildRegistry, buildHistory, undoService, buildSettings, preferences };
 }

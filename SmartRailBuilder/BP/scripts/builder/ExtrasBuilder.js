@@ -42,6 +42,13 @@ import { Logger } from "../utils/Logger.js";
  */
 export function createExtrasState(plan, player, inventoryManager) {
   const isCreative = player.getGameMode() === GameMode.Creative;
+  const guardRails = plan.guardRails ?? [];
+  let fenceId = null;
+  if (guardRails.length > 0) {
+    fenceId = isCreative
+      ? EXTRAS_CONFIG.FENCE_IDS[0]
+      : (EXTRAS_CONFIG.FENCE_IDS.find((id) => inventoryManager.hasAtLeast(player, id, 1)) ?? null);
+  }
   let lightBlockId = null;
   if (plan.lights.length > 0) {
     lightBlockId = isCreative
@@ -57,6 +64,11 @@ export function createExtrasState(plan, player, inventoryManager) {
     boostersPlaced: 0,
     lightsRequested: plan.lights.length,
     lightsPlaced: 0,
+    guardRailByIndex: new Map(guardRails.map((g) => [g.index, g])),
+    guardRailsRequested: guardRails.length > 0,
+    fenceId,
+    fencesPlaced: 0,
+    fencesRanOut: false,
   };
 }
 
@@ -109,7 +121,7 @@ export class ExtrasBuilder {
     if (!booster) return railTypeId;
 
     const { player, dimension } = session;
-    const isSurvival = player.getGameMode() !== GameMode.Creative;
+    const isSurvival = session.isSurvival;
     const boosterRailId = EXTRAS_CONFIG.BOOSTER_RAIL_ID;
     const powerId = EXTRAS_CONFIG.POWER_BLOCK_ID;
 
@@ -146,7 +158,7 @@ export class ExtrasBuilder {
   bridgeSurfaceBlockFor(session, position, materialId) {
     if (!session.extras?.powerKeys.has(positionKey(position))) return materialId;
     const { player } = session;
-    const isSurvival = player.getGameMode() !== GameMode.Creative;
+    const isSurvival = session.isSurvival;
     if (
       isSurvival &&
       (!this._inventoryManager.hasAtLeast(player, EXTRAS_CONFIG.POWER_BLOCK_ID, 1) ||
@@ -155,6 +167,47 @@ export class ExtrasBuilder {
       return materialId;
     }
     return EXTRAS_CONFIG.POWER_BLOCK_ID;
+  }
+
+  /**
+   * v2.0.0 Step 4 — called by BridgeExecutionStrategy right after it places
+   * the deck rail at `railIndex`. Puts a fence on each side of the rail, but
+   * only where the side is open (air or a replaceable plant) AND there's a
+   * drop under it — so the bridge's elevated span gets railings while ramps
+   * on the ground, and anything solid beside the deck, are left alone.
+   *
+   * @param {import("../core/BuildSession.js").BuildSession} session
+   * @param {number} railIndex
+   */
+  placeGuardRails(session, railIndex) {
+    const extras = session.extras;
+    const spot = extras?.guardRailByIndex.get(railIndex);
+    if (!spot || !extras.fenceId || extras.fencesRanOut) return;
+
+    const { player, dimension } = session;
+    const isSurvival = session.isSurvival;
+    const fenceId = extras.fenceId;
+    for (const position of spot.positions) {
+      const read = readBlock(dimension, position);
+      if (read.status !== "OK") continue;
+      const target = read.block;
+      if (!(target.isAir || REPLACEABLE_BLOCK_ID_SET.has(target.typeId)) || target.isLiquid) continue;
+      const under = readBlock(dimension, { x: position.x, y: position.y - 1, z: position.z });
+      if (under.status !== "OK" || !(under.block.isAir || under.block.isLiquid)) continue;
+
+      if (isSurvival && !this._inventoryManager.hasAtLeast(player, fenceId, 1)) {
+        extras.fencesRanOut = true;
+        return;
+      }
+      try {
+        session.journal.write(target, position, permutationFor(fenceId), isSurvival ? fenceId : undefined);
+      } catch (error) {
+        Logger.warn(`Guard rail failed for ${player.name} at rail ${railIndex}.`, error);
+        continue;
+      }
+      if (isSurvival) this._inventoryManager.deductRailItems(player, fenceId, 1);
+      extras.fencesPlaced += 1;
+    }
   }
 
   /**
@@ -170,7 +223,7 @@ export class ExtrasBuilder {
     if (!light || !extras.lightBlockId) return;
 
     const { player, dimension } = session;
-    const isSurvival = player.getGameMode() !== GameMode.Creative;
+    const isSurvival = session.isSurvival;
     const lightId = extras.lightBlockId;
     if (isSurvival && !this._inventoryManager.hasAtLeast(player, lightId, 1)) return;
 

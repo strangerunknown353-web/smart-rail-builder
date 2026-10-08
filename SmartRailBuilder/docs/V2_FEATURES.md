@@ -44,6 +44,7 @@ A running list, updated after every project step. Full technical detail is in `C
   - Uses glowstone, sea lanterns, shroomlights or froglights from your inventory (Creative: glowstone).
     If you have none, the tunnel is built without lights and you're told what to carry.
 - The confirm screen shows your booster and light choices, and **Repeat last build** remembers them.
+  (From Step 4, the dropdowns start at your **Settings** defaults rather than your last build.)
 - **Undo** removes boosters and lights too, and returns the powered rails, redstone blocks and light blocks.
 
 **Optimizations**
@@ -54,3 +55,31 @@ A running list, updated after every project step. Full technical detail is in `C
 - Booster and light block types are looked up once per world session, not once per placement.
 - **Quieter logging:** release logging is now INFO instead of DEBUG — v1 wrote ~15 Content Log lines
   per build plus one per existing rail it passed.
+
+## Step 4 — Cave filling, guard rails & Settings
+**Features**
+- **Fill cave gaps (Underground)** — new toggle, on by default. When the tunnel crosses an open cave,
+  a short stone support column (up to 12 blocks tall) is built under the rail instead of refusing to
+  build. Free, like the waterproof seals. Deeper drops, or caves with water/lava at the bottom, are still
+  refused safely. Undo puts the cave back.
+- **Guard rails (Bridge)** — new toggle. Fences go on both sides of the bridge deck wherever there's a
+  drop below, so the raised part of the bridge gets railings and the ramp ends on the ground don't.
+  Uses any fence type you carry (Creative: oak). If you have none, or run out, you're told.
+- **Settings screen** — new **Settings** button in the crouch menu. Your own defaults, saved on your
+  player:
+  - default railway length
+  - default powered boosters and tunnel lights
+  - fill cave gaps on/off, guard rails on/off
+  - **Quick repeat** — "Repeat last build" builds straight away without the confirm screen
+  - **Show tips** — turn off the "crouch to open" tip
+  After saving, the menu reopens so you can build right away.
+- **Fewer rails needed with boosters** — the inventory check no longer asks for plain rails at spots
+  that will become powered rails. Example: a 17-rail line with boosters every 8 now needs 14 rails plus
+  3 powered rails and 3 redstone blocks (v2 Step 3 asked for 17 rails).
+
+**Optimizations**
+- **One terrain scan instead of two:** the final safety check reuses the first route scan when no
+  game tick has passed since it, because the world can't change mid-tick. If a tick has passed, it
+  re-scans fully as before. On a 64-block Underground build this saves hundreds of block reads.
+- **Game mode read once per build** instead of once per block: 4 reads for a 40-rail build, down
+  from 40+. Safe because changing game mode cancels a running build.

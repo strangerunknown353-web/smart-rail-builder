@@ -3,6 +3,7 @@ import { Logger } from "../../../utils/Logger.js";
 import { PipelineResult } from "../PipelineResult.js";
 import { BuildingMode } from "../../../config/BuildModes.js";
 import { formatBlockDisplayName } from "../../../utils/BlockDisplayName.js";
+import { heldRailsRequired } from "../../ExtrasPlan.js";
 
 /**
  * InventoryStage.js
@@ -152,7 +153,12 @@ export class InventoryStage {
           // build (Project Prompt 14, second round). See this file's header.
           context.terrainReport.positions.length;
 
-    const report = this._inventoryManager.buildReport(player, railTypeId, requiredLength);
+    // v2.0.0 Step 4: affordable boosters replace held rails — see core/ExtrasPlan.js.
+    const report = this._inventoryManager.buildReport(
+      player,
+      railTypeId,
+      heldRailsRequired(this._inventoryManager, player, context.request, requiredLength)
+    );
     context.inventoryCheck = report;
 
     const validation = this._resourceValidator.validate(report, gameMode, "RAILS");
@@ -187,7 +193,11 @@ export class InventoryStage {
   _executeBridgeCheck(context, player, railTypeId, bridgeMaterialId, gameMode) {
     const plan = context.bridgePlan;
 
-    const railReport = this._inventoryManager.buildReport(player, railTypeId, plan.requiredRailCount);
+    const railReport = this._inventoryManager.buildReport(
+      player,
+      railTypeId,
+      heldRailsRequired(this._inventoryManager, player, context.request, plan.requiredRailCount)
+    );
     context.inventoryCheck = railReport;
     const railValidation = this._resourceValidator.validate(railReport, gameMode, "RAILS");
     if (!railValidation.valid) {

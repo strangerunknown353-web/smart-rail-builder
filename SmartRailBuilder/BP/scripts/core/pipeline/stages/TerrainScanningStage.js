@@ -5,6 +5,7 @@ import { PipelineResult } from "../PipelineResult.js";
 import { BuildingMode } from "../../../config/BuildModes.js";
 import { BridgeRejectionReason } from "../../../terrain/BridgePlan.js";
 import { UndergroundRejectionReason } from "../../../terrain/UndergroundPlan.js";
+import { currentTick } from "../../../utils/Tick.js";
 
 /**
  * TerrainScanningStage.js
@@ -125,6 +126,9 @@ export class TerrainScanningStage {
   execute(context) {
     const { player, dimension, buildVector, requestedLength, buildingMode, bridgeHeight, undergroundDepth } = context.request;
 
+    // v2.0.0 optimization — see FinalSafetyCheckStage's SAME-TICK REUSE note.
+    context.terrainScannedAtTick = currentTick();
+
     this._messageService.sendChat(player, LocalizationKeys.DIRECTION_CONFIRMED, [
       DirectionUtils.toDisplayName(buildVector.direction),
       requestedLength,
@@ -230,7 +234,9 @@ export class TerrainScanningStage {
   _executeUndergroundPlanning(context, player, dimension, buildVector, requestedLength, undergroundDepth) {
     this._messageService.sendActionBar(player, LocalizationKeys.ACTIONBAR_PLANNING_UNDERGROUND);
 
-    const plan = this._terrainScanner.planUnderground(buildVector, requestedLength, dimension, undergroundDepth);
+    const plan = this._terrainScanner.planUnderground(buildVector, requestedLength, dimension, undergroundDepth, {
+      fillCaveGaps: context.request.fillCaveGaps,
+    });
 
     if (plan.feasible) {
       const consistency = this._undergroundValidation.validate(plan);

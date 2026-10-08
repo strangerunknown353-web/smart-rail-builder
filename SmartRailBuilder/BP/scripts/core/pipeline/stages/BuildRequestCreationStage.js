@@ -5,6 +5,10 @@ import { BuildRequest } from "../../BuildRequest.js";
 import { BuildVector } from "../../BuildVector.js";
 import { PipelineResult } from "../PipelineResult.js";
 import { MenuAction } from "../../../ui/BuildMenu.js";
+import { DEFAULT_PREFERENCES } from "../../PlayerPreferences.js";
+
+/** v2.0.0 Step 4: how many times one menu session may open Settings. */
+const MAX_SETTINGS_VISITS = 5;
 
 /**
  * BuildRequestCreationStage.js
@@ -90,8 +94,10 @@ export class BuildRequestCreationStage {
    * @param {import("../../../inventory/InventoryManager.js").InventoryManager} inventoryManager Added in the bugfix pass before Project Prompt 18.
    * @param {import("../../PlayerBuildSettings.js").PlayerBuildSettings} [buildSettings] v2.0.0 — enables "Repeat last build" and remembered slider values.
    * @param {import("../../UndoService.js").UndoService} [undoService] v2.0.0 — enables "Undo last build".
+   * @param {import("../../PlayerPreferences.js").PlayerPreferences} [preferences] v2.0.0 Step 4 — Settings screen + defaults.
+   * @param {import("../../../ui/MessageService.js").MessageService} [messageService] v2.0.0 Step 4 — "Settings saved" / quick-repeat feedback.
    */
-  constructor(buildMenu, inventoryManager, buildSettings, undoService) {
+  constructor(buildMenu, inventoryManager, buildSettings, undoService, preferences, messageService) {
     this.name = "BuildRequestCreationStage";
     /** @private */
     this._buildMenu = buildMenu;
@@ -101,6 +107,10 @@ export class BuildRequestCreationStage {
     this._buildSettings = buildSettings;
     /** @private */
     this._undoService = undoService;
+    /** @private */
+    this._preferences = preferences;
+    /** @private */
+    this._messageService = messageService;
   }
 
   /**
@@ -110,10 +120,26 @@ export class BuildRequestCreationStage {
   async execute(context) {
     // --- Screen 1: Building Mode (+ v2.0.0 Repeat / Undo shortcuts) ---
     const lastSettings = this._buildSettings?.get(context.player) ?? null;
-    const modeResult = await this._buildMenu.promptForMode(context.player, {
-      lastSettings,
-      canUndo: this._undoService?.canUndo(context.player) ?? false,
-    });
+    let preferences = this._preferences?.get(context.player) ?? DEFAULT_PREFERENCES;
+    let modeResult;
+    // v2.0.0 Step 4: "Settings" opens the settings form, then returns to
+    // this menu. Bounded so a stuck client can't loop forever.
+    for (let visits = 0; ; visits++) {
+      modeResult = await this._buildMenu.promptForMode(context.player, {
+        lastSettings,
+        canUndo: this._undoService?.canUndo(context.player) ?? false,
+        showSettings: this._preferences !== undefined,
+      });
+      if (modeResult.cancelled || modeResult.action !== MenuAction.SETTINGS) break;
+      if (visits >= MAX_SETTINGS_VISITS) {
+        return PipelineResult.cancelled(this.name, "MODE_MENU_CLOSED");
+      }
+      const settingsResult = await this._buildMenu.promptForSettings(context.player, preferences);
+      if (!settingsResult.cancelled) {
+        preferences = this._preferences.save(context.player, settingsResult.preferences);
+        this._messageService?.sendChat(context.player, LocalizationKeys.SETTINGS_SAVED);
+      }
+    }
     if (modeResult.cancelled) {
       return PipelineResult.cancelled(this.name, "MODE_MENU_CLOSED");
     }
@@ -170,16 +196,23 @@ export class BuildRequestCreationStage {
         modeValue: lastSettings.modeValue,
         boosterSpacing: lastSettings.boosterSpacing,
         lightSpacing: lastSettings.lightSpacing,
+        fillCaveGaps: lastSettings.fillCaveGaps,
+        guardRails: lastSettings.guardRails,
       };
     } else {
       configResult = await this._buildMenu.promptForConfiguration(context.player, mode, {
         minLength: LENGTH_PRESETS.MIN,
         maxLength: LENGTH_PRESETS.MAX_SURVIVAL,
         step: LENGTH_PRESETS.STEP,
-        defaultLength: lastSettings?.length ?? LENGTH_PRESETS.DEFAULT,
+        defaultLength: lastSettings?.length ?? preferences.defaultLength,
         defaultModeValue: lastSettings?.mode === mode ? lastSettings.modeValue : undefined,
-        defaultBoosterSpacing: lastSettings?.boosterSpacing,
-        defaultLightSpacing: lastSettings?.lightSpacing,
+        // Step 4: extras start at the player's Settings, so a changed
+        // setting applies to the very next build (Repeat still reuses the
+        // last build exactly).
+        defaultBoosterSpacing: preferences.boosterSpacing,
+        defaultLightSpacing: preferences.lightSpacing,
+        defaultFillCaveGaps: preferences.fillCaveGaps,
+        defaultGuardRails: preferences.guardRails,
       });
       if (configResult.cancelled) {
         return PipelineResult.cancelled(this.name, "CONFIG_MENU_CLOSED");
@@ -192,7 +225,12 @@ export class BuildRequestCreationStage {
     let buildVector = BuildVector.fromPlayer(context.player);
 
     // --- Screen 3: Final Build Summary ---
-    const summaryResult = await this._buildMenu.promptForSummary(context.player, {
+    // v2.0.0 Step 4: "Quick repeat" (Settings) skips it for Repeat.
+    const skipSummary = repeating && preferences.quickRepeat;
+    if (skipSummary) {
+      this._messageService?.sendActionBar(context.player, LocalizationKeys.ACTIONBAR_QUICK_REPEAT);
+    }
+    const summaryResult = skipSummary ? { cancelled: false, confirmed: true } : await this._buildMenu.promptForSummary(context.player, {
       railTypeId: context.railTypeId,
       mode,
       modeValue: configResult.modeValue,
@@ -201,6 +239,8 @@ export class BuildRequestCreationStage {
       direction: buildVector.direction,
       boosterSpacing: configResult.boosterSpacing ?? 0,
       lightSpacing: configResult.lightSpacing ?? 0,
+      fillCaveGaps: configResult.fillCaveGaps,
+      guardRails: configResult.guardRails,
     });
     if (summaryResult.cancelled || !summaryResult.confirmed) {
       return PipelineResult.cancelled(this.name, summaryResult.cancelled ? "SUMMARY_MENU_CLOSED" : "SUMMARY_CANCELLED");
@@ -215,6 +255,8 @@ export class BuildRequestCreationStage {
       materialId,
       boosterSpacing: configResult.boosterSpacing,
       lightSpacing: configResult.lightSpacing,
+      fillCaveGaps: configResult.fillCaveGaps,
+      guardRails: configResult.guardRails,
     });
 
     // Re-computed fresh here, right before actually constructing the
@@ -236,6 +278,8 @@ export class BuildRequestCreationStage {
       undergroundDepth: modeDef?.configField === "undergroundDepth" ? configResult.modeValue : undefined,
       boosterSpacing: configResult.boosterSpacing,
       lightSpacing: configResult.lightSpacing,
+      fillCaveGaps: configResult.fillCaveGaps,
+      guardRails: configResult.guardRails,
     });
 
     return PipelineResult.success();

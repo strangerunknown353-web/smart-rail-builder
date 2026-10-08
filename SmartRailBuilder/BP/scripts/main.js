@@ -80,6 +80,7 @@ import { ActiveBuildRegistry } from "./core/ActiveBuildRegistry.js";
 import { BuildHistory } from "./core/BuildHistory.js";
 import { UndoService } from "./core/UndoService.js";
 import { PlayerBuildSettings } from "./core/PlayerBuildSettings.js";
+import { PlayerPreferences } from "./core/PlayerPreferences.js";
 
 import { ValidationManager } from "./core/validation/ValidationManager.js";
 import { PlayerValidator } from "./core/validation/PlayerValidator.js";
@@ -166,6 +167,7 @@ function buildDependencyGraph() {
   const buildHistory = new BuildHistory();
   const undoService = new UndoService(buildHistory, inventoryManager, messageService);
   const buildSettings = new PlayerBuildSettings();
+  const preferences = new PlayerPreferences(); // v2.0.0 Step 4 — Settings screen
 
   // --- Validation framework: one validator per concern, order matters
   // (cheapest/most-fundamental checks first). ---
@@ -186,7 +188,7 @@ function buildDependencyGraph() {
   // see §24 for the buildReady-shortcut history and §32 for the real fix). ---
   const pipeline = new BuildPipeline([
     new RailDetectionStage(),
-    new BuildRequestCreationStage(buildMenu, inventoryManager, buildSettings, undoService), // inventoryManager added in the bugfix pass before Project Prompt 18 — bridge material scanning
+    new BuildRequestCreationStage(buildMenu, inventoryManager, buildSettings, undoService, preferences, messageService), // inventoryManager added in the bugfix pass before Project Prompt 18 — bridge material scanning
     new ValidationStage(validationManager, messageService),
     new ModeAvailabilityStage(), // Project Prompt 15 — kept in place for future modes; as of Project Prompt 17 all three permanent modes are implemented, so this gates nothing today
     new TerrainScanningStage(terrainScanner, pathValidator, messageService, bridgeValidation, undergroundValidation),
@@ -199,10 +201,10 @@ function buildDependencyGraph() {
 
   const orchestrator = new BuildOrchestrator({ pipeline, messageService });
 
-  return { orchestrator, cancellationWatcher, messageService };
+  return { orchestrator, cancellationWatcher, messageService, preferences };
 }
 
-const { orchestrator, cancellationWatcher, messageService } = buildDependencyGraph();
+const { orchestrator, cancellationWatcher, messageService, preferences } = buildDependencyGraph();
 const interactionGate = new InteractionGate(RAIL_ITEM_IDS, {
   requireSneak: INTERACTION.REQUIRE_SNEAK_TO_OPEN_MENU,
 });
@@ -246,7 +248,7 @@ function handleRailItemInteraction(event) {
     // time per session, tell the player how to reach the build menu now
     // that a plain tap no longer opens it. Deferred because actionbar
     // writes aren't allowed in restricted-execution mode.
-    if (interactionGate.takeHint(player.id)) {
+    if (preferences.get(player).showTips && interactionGate.takeHint(player.id)) {
       system.run(() => messageService.sendActionBar(player, LocalizationKeys.ACTIONBAR_CROUCH_HINT));
     }
     return;

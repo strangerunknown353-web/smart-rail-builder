@@ -281,7 +281,7 @@ async function run(graph, player) {
   assertEqual(menu.calls.mode[0].lastSettings, null, "repeat: first menu has nothing to repeat");
   assertEqual(
     graph.buildSettings.get(player),
-    { mode: "BRIDGE", length: 6, modeValue: 4, materialId: "minecraft:stone", boosterSpacing: 0 },
+    { mode: "BRIDGE", length: 6, modeValue: 4, materialId: "minecraft:stone", boosterSpacing: 0, guardRails: false },
     "repeat: confirmed settings remembered"
   );
 
@@ -353,7 +353,7 @@ async function run(graph, player) {
   assertTrue(typeof store.get(LAST_BUILD_PROPERTY) === "string", "persist: written to the player's dynamic property");
   assertEqual(
     new PlayerBuildSettings().get(player),
-    { mode: "UNDERGROUND", length: 12, modeValue: 7, boosterSpacing: 0, lightSpacing: 8 },
+    { mode: "UNDERGROUND", length: 12, modeValue: 7, boosterSpacing: 0, lightSpacing: 8, fillCaveGaps: false },
     "persist: a fresh store (world reload) reads it back"
   );
 

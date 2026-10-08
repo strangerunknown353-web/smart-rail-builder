@@ -56,6 +56,7 @@
  *   `dimension` it's given, so it stays easy to reason about and to unit test.
  */
 
+import { GameMode } from "@minecraft/server";
 import { BuildJournal } from "./BuildJournal.js";
 
 export class BuildSession {
@@ -94,6 +95,22 @@ export class BuildSession {
   }
 
   /** Call once per block confirmed placed. */
+  /**
+   * v2.0.0 optimization: Survival (pays for blocks) vs Creative, read from
+   * the player ONCE per build instead of once per placed block (every
+   * strategy and extras placement used to call player.getGameMode()). Safe
+   * because a game mode change mid-build cancels the build
+   * (core/CancellationWatcher.js), and every placement loop checks
+   * isCancelled() before placing.
+   * @returns {boolean}
+   */
+  get isSurvival() {
+    if (this._isSurvival === undefined) {
+      this._isSurvival = this.player.getGameMode() !== GameMode.Creative;
+    }
+    return this._isSurvival;
+  }
+
   incrementBlocksPlaced() {
     this.blocksPlaced += 1;
   }

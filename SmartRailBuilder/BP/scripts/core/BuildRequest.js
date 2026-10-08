@@ -123,6 +123,8 @@ export class BuildRequest {
     undergroundDepth,
     boosterSpacing,
     lightSpacing,
+    fillCaveGaps,
+    guardRails,
   }) {
     /** @readonly */
     this.player = player;
@@ -155,5 +157,8 @@ export class BuildRequest {
     this.boosterSpacing = pickSpacing(boosterSpacing, EXTRAS_CONFIG.BOOSTER_SPACING_OPTIONS, 0);
     this.lightSpacing =
       this.buildingMode === "UNDERGROUND" ? pickSpacing(lightSpacing, EXTRAS_CONFIG.LIGHT_SPACING_OPTIONS, 0) : 0;
+    // v2.0.0 Step 4 — strictly booleans, and only for the mode they belong to.
+    this.fillCaveGaps = this.buildingMode === "UNDERGROUND" && fillCaveGaps === true;
+    this.guardRails = this.buildingMode === "BRIDGE" && guardRails === true;
   }
 }

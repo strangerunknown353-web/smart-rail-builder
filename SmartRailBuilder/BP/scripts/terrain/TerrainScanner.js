@@ -241,6 +241,34 @@ const BUILDABLE_CLASSIFICATIONS = Object.freeze([
  * @property {boolean} buildReady True only if every position is FLAT_SAFE, ASCENDING, DESCENDING, or TUNNEL.
  */
 
+/**
+ * v2.0.0 Step 4 (cave gap filling): from an empty floor position, walks down
+ * looking for real support within UNDERGROUND_CONFIG.CAVE_FILL_MAX_DEPTH.
+ * Returns the positions to fill, BOTTOM-UP (each block placed on the one
+ * below it), or null when there's no safe support in range — open water,
+ * lava, an unloaded/out-of-world block, or just too deep.
+ *
+ * @param {import("@minecraft/server").Dimension} dimension
+ * @param {{x:number,y:number,z:number}} floorPosition the empty block directly under the rail
+ * @returns {Array<{x:number,y:number,z:number}>|null}
+ */
+function findCaveFillColumn(dimension, floorPosition) {
+  const column = [];
+  for (let d = 0; d < UNDERGROUND_CONFIG.CAVE_FILL_MAX_DEPTH; d++) {
+    const position = { x: floorPosition.x, y: floorPosition.y - d, z: floorPosition.z };
+    const read = readBlock(dimension, position);
+    if (read.status !== "OK") return null;
+    const block = read.block;
+    if (block.isLiquid || HAZARD_BLOCK_ID_SET.has(block.typeId)) return null;
+    if (block.isAir || REPLACEABLE_BLOCK_ID_SET.has(block.typeId)) {
+      column.push(position);
+      continue;
+    }
+    return column.reverse(); // solid support found
+  }
+  return null;
+}
+
 export class TerrainScanner {
   constructor() {
     /** @private */
@@ -772,7 +800,7 @@ export class TerrainScanner {
    * @param {number} depth Already validated 1-64 by ModeConfigValidator — this method consumes the value and never re-derives that bound.
    * @returns {import("./UndergroundPlan.js").UndergroundPlan}
    */
-  planUnderground(buildVector, length, dimension, depth) {
+  planUnderground(buildVector, length, dimension, depth, { fillCaveGaps = false } = {}) {
     const originY = buildVector.origin.y;
     const railY = computeUndergroundRailY(originY, depth);
 
@@ -797,6 +825,7 @@ export class TerrainScanner {
     // WATERPROOF TUNNEL (Project Prompt 18) — see the corridor loop below.
     let totalSealCount = 0;
     let waterRowsSealed = 0;
+    let caveFillCount = 0;
 
     for (let i = 0; i < length; i++) {
       const { x, z } = buildVector.horizontalAt(i);
@@ -837,12 +866,20 @@ export class TerrainScanner {
       }
 
       const floorIsSolid = !floorBlock.isAir && !REPLACEABLE_BLOCK_ID_SET.has(floorBlock.typeId);
+      // v2.0.0 Step 4: an open cave under the rail can be bridged with a
+      // short support column instead of rejecting the whole tunnel.
+      let floorFillPositions = [];
       if (!floorIsSolid) {
-        return {
-          feasible: false,
-          rejectionReason: UndergroundRejectionReason.UNSUPPORTED_FLOOR,
-          rejectionPosition: floorPosition,
-        };
+        const fill = fillCaveGaps ? findCaveFillColumn(dimension, floorPosition) : null;
+        if (!fill) {
+          return {
+            feasible: false,
+            rejectionReason: UndergroundRejectionReason.UNSUPPORTED_FLOOR,
+            rejectionPosition: floorPosition,
+          };
+        }
+        floorFillPositions = fill;
+        caveFillCount += fill.length;
       }
 
       // --- Corridor: the rail block plus its headroom, bottom-up.
@@ -964,6 +1001,7 @@ export class TerrainScanner {
         slopeDirection: isRamp ? slopeDir : null,
         excavationPositions,
         sealPositions,
+        floorFillPositions,
       });
     }
 
@@ -1026,6 +1064,7 @@ export class TerrainScanner {
         alreadyClearCount,
         commonOresExcavated,
         waterRowsSealed,
+        caveFillCount,
       },
     };
   }
